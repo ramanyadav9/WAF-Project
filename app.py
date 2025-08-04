@@ -89,25 +89,40 @@ def get_attempts_count():
     count = cursor.fetchone()[0]
     conn.close()
     return count
-
 @app.before_request
 def check_for_sqli():
-    # Skip certain safe/static paths
     skip_paths = ['/caught-sqli', '/attempts', '/api/attempts']
     if request.path.startswith('/static') or request.path in skip_paths:
         return
-    # Check full query string
+
+    # 1. Check the entire raw query string
     url_query = request.query_string.decode('utf-8')
-    if is_sqli_attempt(url_query):
+    if url_query and is_sqli_attempt(url_query):
         client_ip = get_client_ip(request)
-        log_attempt(client_ip, url_query)
+        log_attempt(client_ip, f"QueryString: {url_query}")
         return redirect(url_for('caught_sqli', attempted=url_query, ip=client_ip))
-    # Check all parameter values individually for deeper coverage
-    for value in request.args.values():
-        if is_sqli_attempt(value):
+
+    # 2. Check all query parameter values
+    for key, value in request.args.items():
+        if value and is_sqli_attempt(value):
             client_ip = get_client_ip(request)
-            log_attempt(client_ip, str(request.args))
-            return redirect(url_for('caught_sqli', attempted=str(request.args), ip=client_ip))
+            log_attempt(client_ip, f"Param: {key}={value}")
+            return redirect(url_for('caught_sqli', attempted=f"{key}={value}", ip=client_ip))
+
+    # 3. Check all parts of the path (decode for encoded SQLi in RESTful URLs)
+    path_parts = request.path.split('/')
+    for part in path_parts:
+        if part and is_sqli_attempt(part):
+            client_ip = get_client_ip(request)
+            log_attempt(client_ip, f"Path: {part}")
+            return redirect(url_for('caught_sqli', attempted=part, ip=client_ip))
+    
+    # 4. Optionally: Check headers (like User-Agent) for sneaky payloads
+    for header, value in request.headers.items():
+        if is_sqli_attempt(str(value)):
+            client_ip = get_client_ip(request)
+            log_attempt(client_ip, f"Header: {header}: {value}")
+            return redirect(url_for('caught_sqli', attempted=f"Header: {header}: {value}", ip=client_ip))
 
 @app.route('/')
 def index():
