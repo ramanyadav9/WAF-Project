@@ -7,7 +7,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.static_folder = 'static'
 
-# Enhanced SQL injection detection patterns (fixed regex)
+# Enhanced SQL injection patterns with proper word boundaries
 SQLI_PATTERNS = [
     r"'", r"--", r";", r"/\*", r"\*/",
     r"\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|IF)\b",
@@ -20,11 +20,10 @@ SQLI_PATTERNS = [
 ]
 SQLI_REGEX = re.compile("|".join(SQLI_PATTERNS), re.IGNORECASE)
 
-def is_sqli_attempt(s):
-    return bool(SQLI_REGEX.search(s)) if s else False
+def is_sqli_attempt(value):
+    return bool(SQLI_REGEX.search(value)) if value else False
 
 def get_client_ip(request):
-    # Support for common proxy headers
     forwarded = (
         request.headers.get('X-Forwarded-For')
         or request.headers.get('X-Real-IP')
@@ -49,7 +48,7 @@ def init_db():
             isp TEXT
         )
     ''')
-    # Add missing columns if upgrading (ignore error if column exists)
+    # Add missing columns for upgrades
     try:
         cursor.execute("ALTER TABLE attempts ADD COLUMN country TEXT")
     except sqlite3.OperationalError:
@@ -89,46 +88,56 @@ def get_attempts_count():
     count = cursor.fetchone()[0]
     conn.close()
     return count
+
 @app.before_request
 def check_for_sqli():
-    skip_paths = ['/caught-sqli', '/attempts', '/api/attempts']
+    # Paths/endpoints to skip detection and redirection
+    skip_paths = [
+        '/caught-sqli',
+        '/attempts',
+        '/api/attempts',
+        '/favicon.ico'
+    ]
     if request.path.startswith('/static') or request.path in skip_paths:
         return
 
-    # 1. Check the entire raw query string
+    # 1. Check raw query string
     url_query = request.query_string.decode('utf-8')
     if url_query and is_sqli_attempt(url_query):
         client_ip = get_client_ip(request)
         log_attempt(client_ip, f"QueryString: {url_query}")
         return redirect(url_for('caught_sqli', attempted=url_query, ip=client_ip))
 
-    # 2. Check all query parameter values
-    for key, value in request.args.items():
-        if value and is_sqli_attempt(value):
+    # 2. Check all parameter values
+    for k, v in request.args.items():
+        if v and is_sqli_attempt(v):
             client_ip = get_client_ip(request)
-            log_attempt(client_ip, f"Param: {key}={value}")
-            return redirect(url_for('caught_sqli', attempted=f"{key}={value}", ip=client_ip))
+            log_attempt(client_ip, f"Param: {k}={v}")
+            return redirect(url_for('caught_sqli', attempted=f"{k}={v}", ip=client_ip))
 
-    # 3. Check all parts of the path (decode for encoded SQLi in RESTful URLs)
-    path_parts = request.path.split('/')
-    for part in path_parts:
+    # 3. Check decoded path parts (if attacker obfuscates in path)
+    for part in request.path.split('/'):
         if part and is_sqli_attempt(part):
             client_ip = get_client_ip(request)
             log_attempt(client_ip, f"Path: {part}")
             return redirect(url_for('caught_sqli', attempted=part, ip=client_ip))
-    
-    # 4. Optionally: Check headers (like User-Agent) for sneaky payloads
+
+    # 4. Optionally: Check headers (e.g., User-Agent)
     for header, value in request.headers.items():
         if is_sqli_attempt(str(value)):
-            client_ip = get_client_ip(request)
-            log_attempt(client_ip, f"Header: {header}: {value}")
-            return redirect(url_for('caught_sqli', attempted=f"Header: {header}: {value}", ip=client_ip))
+            # Only block on non-admin pages to avoid redirect loop
+            if request.path not in skip_paths:
+                client_ip = get_client_ip(request)
+                log_attempt(client_ip, f"Header: {header}: {value}")
+                return redirect(url_for('caught_sqli', attempted=f"Header: {header}: {value}", ip=client_ip))
 
 @app.route('/')
 def index():
     conn = sqlite3.connect('sqli_logs.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT ip, attempted, timestamp, country, isp FROM attempts ORDER BY id DESC')
+    cursor.execute(
+        'SELECT ip, attempted, timestamp, country, isp FROM attempts ORDER BY id DESC'
+    )
     attempts = cursor.fetchall()
     conn.close()
     attempt_count = get_attempts_count()
