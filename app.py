@@ -1,57 +1,44 @@
 import re
 import sqlite3
 import requests
-
-from flask import jsonify  # Add this import if not already present
-
+from flask import Flask, request, redirect, url_for, render_template, jsonify
 from datetime import datetime
-from flask import Flask, request, redirect, url_for, render_template
 
 app = Flask(__name__)
+app.static_folder = 'static'
 
-app.static_folder = 'static'  
-
-
-# SQLi detection patterns (expand as needed)
-import re
-
-# Enhanced patterns to detect advanced payloads
+# Enhanced SQL injection detection patterns (fixed regex)
 SQLI_PATTERNS = [
-    r"'",                      # Single quote
-    r"--",                     # Comment
-    r";",                      # Statement terminator
-    r"/\*",                    # Block comment start
-    r"\*/",                    # Block comment end
-    r"\\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|IF)\\b",  # Core keywords/functions
-    r"\\b(0x[0-9a-fA-F]+)\\b", # Hex values (e.g., 0x414243)
-    r"\\b(ASCII|CHR|SUBSTR|SUBSTRING)\\b",  # String manipulation
-    r"\\b(EXECUTE|FETCH|OPEN)\\b",  # Execution commands
-    r"\\b(ALTER|CREATE|REPLACE|GRANT|REVOKE|TRUNCATE)\\b",  # DDL commands
-    r"\\b(INFORMATION_SCHEMA|PG_SLEEP)\\b",  # Schema and Postgres-specific
-    r"\\b(DECLARE|WAITFOR)\\b",  # MSSQL-specific
-    r"\\b(ARRAY)\\b",          # Array-based injections
+    r"'", r"--", r";", r"/\*", r"\*/",
+    r"\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|IF)\b",
+    r"\b(0x[0-9a-fA-F]+)\b",
+    r"\b(ASCII|CHR|SUBSTR|SUBSTRING)\b",
+    r"\b(EXECUTE|FETCH|OPEN)\b",
+    r"\b(ALTER|CREATE|REPLACE|GRANT|REVOKE|TRUNCATE)\b",
+    r"\b(INFORMATION_SCHEMA|PG_SLEEP)\b",
+    r"\b(ARRAY)\b"
 ]
+SQLI_REGEX = re.compile("|".join(SQLI_PATTERNS), re.IGNORECASE)
 
-def is_sqli_attempt(url_query):
-    pattern = re.compile("|".join(SQLI_PATTERNS), re.IGNORECASE)  # Case-insensitive
-    return bool(pattern.search(url_query))
-
+def is_sqli_attempt(s):
+    return bool(SQLI_REGEX.search(s)) if s else False
 
 def get_client_ip(request):
-    forwarded = request.headers.get('X-Forwarded-For') or request.headers.get('X-Real-IP') or request.headers.get('CF-Connecting-IP')
+    # Support for common proxy headers
+    forwarded = (
+        request.headers.get('X-Forwarded-For')
+        or request.headers.get('X-Real-IP')
+        or request.headers.get('CF-Connecting-IP')
+    )
     if forwarded:
         ip = forwarded.split(',')[0].strip()
     else:
         ip = request.remote_addr
     return ip
 
-
-# Initialize SQLite database
 def init_db():
     conn = sqlite3.connect('sqli_logs.db')
     cursor = conn.cursor()
-    
-    # Create table with all columns if it doesn't exist
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,45 +49,39 @@ def init_db():
             isp TEXT
         )
     ''')
-    
-    # Safely add columns if missing (skips if they exist)
+    # Add missing columns if upgrading (ignore error if column exists)
     try:
         cursor.execute("ALTER TABLE attempts ADD COLUMN country TEXT")
     except sqlite3.OperationalError:
-        pass  # Already exists
-    
+        pass
     try:
         cursor.execute("ALTER TABLE attempts ADD COLUMN isp TEXT")
     except sqlite3.OperationalError:
-        pass  # Already exists
-    
+        pass
     conn.commit()
     conn.close()
-    
-    
+
 with app.app_context():
-    init_db()  # This is the line to add—forces creation
+    init_db()
 
 def log_attempt(ip, attempted):
-    # Fetch geo-location data
     try:
         geo = requests.get(f"https://ipapi.co/{ip}/json/").json()
         country = geo.get('country_name', 'Unknown')
         isp = geo.get('org', 'Unknown')
-    except Exception as e:
+    except Exception:
         country = 'Unknown'
         isp = 'Unknown'
-    
     conn = sqlite3.connect('sqli_logs.db')
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('INSERT INTO attempts (ip, attempted, timestamp, country, isp) VALUES (?, ?, ?, ?, ?)',
-                   (ip, attempted, timestamp, country, isp))
+    cursor.execute(
+        'INSERT INTO attempts (ip, attempted, timestamp, country, isp) VALUES (?, ?, ?, ?, ?)',
+        (ip, attempted, timestamp, country, isp)
+    )
     conn.commit()
     conn.close()
-    
-    
-    
+
 def get_attempts_count():
     conn = sqlite3.connect('sqli_logs.db')
     cursor = conn.cursor()
@@ -109,20 +90,25 @@ def get_attempts_count():
     conn.close()
     return count
 
-
-
-# Detection middleware
 @app.before_request
 def check_for_sqli():
-    if request.path == '/caught-sqli' or request.path == '/attempts':  # Skip for these pages
+    # Skip certain safe/static paths
+    skip_paths = ['/caught-sqli', '/attempts', '/api/attempts']
+    if request.path.startswith('/static') or request.path in skip_paths:
         return
+    # Check full query string
     url_query = request.query_string.decode('utf-8')
     if is_sqli_attempt(url_query):
         client_ip = get_client_ip(request)
-        log_attempt(client_ip, url_query)  # Log to DB
+        log_attempt(client_ip, url_query)
         return redirect(url_for('caught_sqli', attempted=url_query, ip=client_ip))
+    # Check all parameter values individually for deeper coverage
+    for value in request.args.values():
+        if is_sqli_attempt(value):
+            client_ip = get_client_ip(request)
+            log_attempt(client_ip, str(request.args))
+            return redirect(url_for('caught_sqli', attempted=str(request.args), ip=client_ip))
 
-# Main page with company info and attempts section
 @app.route('/')
 def index():
     conn = sqlite3.connect('sqli_logs.db')
@@ -130,14 +116,8 @@ def index():
     cursor.execute('SELECT ip, attempted, timestamp, country, isp FROM attempts ORDER BY id DESC')
     attempts = cursor.fetchall()
     conn.close()
-    
-    attempt_count = get_attempts_count()  # Get the total count
-    
+    attempt_count = get_attempts_count()
     return render_template('index.html', attempts=attempts, attempt_count=attempt_count)
-
-
-
-
 
 @app.route('/api/attempts')
 def api_attempts():
@@ -146,17 +126,11 @@ def api_attempts():
     cursor.execute('SELECT ip, attempted, timestamp, country, isp FROM attempts ORDER BY id DESC')
     attempts = cursor.fetchall()
     conn.close()
-    
-    # Convert to list of dicts for JSON
     attempts_list = [
         {"ip": a[0], "attempted": a[1], "timestamp": a[2], "country": a[3], "isp": a[4]} for a in attempts
     ]
     return jsonify(attempts_list)
 
-
-
-
-# Custom error page
 @app.route('/caught-sqli')
 def caught_sqli():
     attempted = request.args.get('attempted', '')
