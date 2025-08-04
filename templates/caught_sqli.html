@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SQL Injection Detected</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1b26; /* Dark background */
+            color: #e0e0e0; /* Light text */
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ffffff; /* White header */
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #24283b; /* Dark card background */
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); /* Subtle shadow */
+            text-align: center; /* Center content for modern feel */
+        }
+
+        p {
+            line-height: 1.6;
+            color: #a9b1d6; /* Muted text */
+            margin: 10px 0;
+        }
+
+        .highlight {
+            color: #ff7a7a; /* Red accent for warnings */
+            font-weight: bold;
+        }
+
+        .message {
+            background: #414868; /* Subtle inner card for message */
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Access Denied</h1>
+        <p><strong class="highlight">Your IP:</strong> {{ ip }}</p>
+        <p><strong class="highlight">Attempted Injection:</strong> {{ attempted }}</p>
+        <div class="message">
+            <p>This attempt has been logged. Contact support if this is an error.</p>
+        </div>
+    </div>
+</body>
+</html>
