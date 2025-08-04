@@ -76,6 +76,10 @@ def init_db():
     
     conn.commit()
     conn.close()
+    
+    
+with app.app_context():
+    init_db()  # This is the line to add—forces creation
 
 def log_attempt(ip, attempted):
     # Fetch geo-location data
