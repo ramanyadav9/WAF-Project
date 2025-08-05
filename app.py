@@ -88,46 +88,38 @@ def get_attempts_count():
     count = cursor.fetchone()[0]
     conn.close()
     return count
+
 @app.before_request
 def check_for_sqli():
-    # These pages should NEVER be blocked or redirected
-    skip_paths = ['/', '/caught-sqli', '/attempts', '/api/attempts', '/favicon.ico']
-    if request.path.startswith('/static') or request.path in skip_paths:
+    # List of routes that should never be blocked
+    safe_paths = ['/', '/caught-sqli', '/attempts', '/api/attempts', '/favicon.ico']
+    if request.path.startswith('/static') or request.path in safe_paths:
         return
 
-    # Always log the full query (whether malicious or not)
-    url_query = request.query_string.decode('utf-8')
     client_ip = get_client_ip(request)
-    # Log all queries, with a flag if suspicious
-    is_sus = False
+    detected = False
+    payload = ""
 
-    # 1. Check the full raw query string
-    if url_query and is_sqli_attempt(url_query):
-        log_attempt(client_ip, f"Suspicious QueryString: {url_query}")
-        is_sus = True
-
-    # 2. Check all parameter values
+    # 1. Check all GET parameter values (user input)
     for k, v in request.args.items():
         if v and is_sqli_attempt(v):
-            log_attempt(client_ip, f"Suspicious Param: {k}={v}")
-            is_sus = True
+            payload = f"Param: {k}={v}"
+            detected = True
+            break  # Only block & log first match
 
-    # 3. Check decoded path parts
-    for part in request.path.split('/'):
-        if part and is_sqli_attempt(part):
-            log_attempt(client_ip, f"Suspicious Path: {part}")
-            is_sus = True
+    # 2. If nothing detected yet, check the full query string as sometimes INJECTS happen here directly
+    if not detected:
+        url_query = request.query_string.decode('utf-8')
+        if url_query and is_sqli_attempt(url_query):
+            payload = f"QueryString: {url_query}"
+            detected = True
 
-    # 4. Optionally: Check headers
-    for header, value in request.headers.items():
-        if is_sqli_attempt(str(value)):
-            log_attempt(client_ip, f"Suspicious Header: {header}: {value}")
-            is_sus = True
+    if detected:
+        log_attempt(client_ip, payload)
+        if request.path not in safe_paths:  # don't redirect user if already on dashboard/caught-sqli
+            return redirect(url_for('caught_sqli', attempted=payload, ip=client_ip))
+    # Normal browsing? Just proceed, don't log, don't block
 
-    # Only if something suspicious was found and it was NOT a dashboard page, deny access
-    if is_sus:
-        return redirect(url_for('caught_sqli', attempted=url_query, ip=client_ip))
-    # Otherwise, just pass through and let logging/dashboard work!
 
 # On the dashboard ('/') side, always show ALL logs (normal and suspicious)
 @app.route('/')
