@@ -3,11 +3,12 @@ import sqlite3
 import requests
 from flask import Flask, request, redirect, url_for, render_template, jsonify
 from datetime import datetime
+from urllib.parse import unquote_plus
 
 app = Flask(__name__)
 app.static_folder = 'static'
 
-# Enhanced SQL injection patterns with proper word boundaries
+# SQL Injection detection patterns
 SQLI_PATTERNS = [
     r"'", r"--", r";", r"/\*", r"\*/",
     r"\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|IF)\b",
@@ -48,7 +49,6 @@ def init_db():
             isp TEXT
         )
     ''')
-    # Add missing columns for upgrades
     try:
         cursor.execute("ALTER TABLE attempts ADD COLUMN country TEXT")
     except sqlite3.OperationalError:
@@ -89,39 +89,50 @@ def get_attempts_count():
     conn.close()
     return count
 
+
+
+
 @app.before_request
 def check_for_sqli():
-    # List of routes that should never be blocked
-    safe_paths = ['/', '/caught-sqli', '/attempts', '/api/attempts', '/favicon.ico']
+    safe_paths = ['/caught-sqli', '/attempts', '/api/attempts', '/favicon.ico']
     if request.path.startswith('/static') or request.path in safe_paths:
+        print("[SKIP] Static or safe path.")
         return
 
     client_ip = get_client_ip(request)
     detected = False
     payload = ""
 
-    # 1. Check all GET parameter values (user input)
-    for k, v in request.args.items():
-        if v and is_sqli_attempt(v):
-            payload = f"Param: {k}={v}"
-            detected = True
-            break  # Only block & log first match
+    print("Request URL Path:", request.path)
+    print("Raw query string:", request.query_string.decode('utf-8'))
 
-    # 2. If nothing detected yet, check the full query string as sometimes INJECTS happen here directly
+    # Check all GET params explicitly
+    for k, v in request.args.items():
+        decoded_v = unquote_plus(v)
+        print(f"Checking param: {k} = {decoded_v}")
+        if decoded_v and is_sqli_attempt(decoded_v):
+            print(f"SQLi detected in {k} = {decoded_v}")  # Debug
+            payload = f"Param: {k}={decoded_v}"
+            detected = True
+            break
+
+    # Now optionally check the full decoded query string
     if not detected:
         url_query = request.query_string.decode('utf-8')
-        if url_query and is_sqli_attempt(url_query):
-            payload = f"QueryString: {url_query}"
+        decoded_qs = unquote_plus(url_query)
+        if decoded_qs and is_sqli_attempt(decoded_qs):
+            print(f"SQLi detected in raw query string: {decoded_qs}")
+            payload = f"QueryString: {decoded_qs}"
             detected = True
 
     if detected:
+        print(f"Logging and redirecting. Reason: {payload}")
         log_attempt(client_ip, payload)
-        if request.path not in safe_paths:  # don't redirect user if already on dashboard/caught-sqli
+        if request.path not in safe_paths:
             return redirect(url_for('caught_sqli', attempted=payload, ip=client_ip))
-    # Normal browsing? Just proceed, don't log, don't block
+    else:
+        print("No SQLi detected (request continues normally).")
 
-
-# On the dashboard ('/') side, always show ALL logs (normal and suspicious)
 @app.route('/')
 def index():
     conn = sqlite3.connect('sqli_logs.db')
@@ -151,4 +162,4 @@ def caught_sqli():
     return render_template('caught_sqli.html', attempted=attempted, ip=ip)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
