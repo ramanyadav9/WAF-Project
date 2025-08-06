@@ -1,14 +1,207 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>CyberSentinel – Secured Gateway</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #f4f8fb;
+      color: #213251;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .logo-block {
+      background: linear-gradient(130deg, #e8f1fc 60%, #f4f8fb 100%);
+      border-bottom: 2px solid #385984;
+      text-align: center;
+      padding: 7vh 0 28px 0;
+    }
+    .logo-block img {
+      height: 80px;
+      box-shadow: 0 4px 32px 0 rgba(52,85,140,0.10);
+      border-radius: 17px;
+      background: #fff;
+      padding: 6px 10px;
+    }
+    .logo-block h1 {
+      font-size: 2.4rem;
+      letter-spacing: 2px;
+      font-weight: 800;
+      color: #213251;
+      margin: 12px 0 3px 0;
+      text-shadow: 0 2px 8px rgba(33,50,81,0.04);
+    }
+    .logo-block p {
+      color: #385984;
+      font-size: 1.1rem;
+      margin-top: 9px;
+      margin-bottom: 10px;
+      font-weight: 400;
+    }
+    .container {
+      max-width: 900px;
+      margin: 38px auto 0;
+      padding: 0 18px;
+    }
+    .waf-chip {
+      display: inline-block;
+      background: #213251;
+      color: #fff;
+      font-size: 1em;
+      font-weight: 500;
+      border-radius: 14px;
+      padding: 7px 19px;
+      margin-bottom: 21px;
+      letter-spacing: .5px;
+      box-shadow: 0 2px 12px 0 rgba(40,70,120,0.10);
+    }
+    .waf-title {
+      font-size: 2.05rem;
+      font-weight: 700;
+      color: #253e72;
+      margin-bottom: 11px;
+    }
+    .waf-desc {
+      font-size: 1.1rem;
+      color: #335184;
+      margin-bottom: 18px;
+    }
+    .info-box {
+      background: #fff;
+      border-radius: 13px;
+      box-shadow: 0 3px 22px rgba(40,70,120,0.11);
+      padding: 28px 23px 20px;
+      margin-bottom: 30px;
+      border-left: 6px solid #325bb9;
+    }
+    .info-title {
+      font-size: 1.16rem;
+      color: #27408b;
+      font-weight: bold;
+      margin-bottom: 10px;
+      letter-spacing: 0.7px;
+    }
+    .bullets {
+      margin: 0 0 0 18px;
+      padding: 0;
+      color: #222e5a;
+    }
+    .bullets li {
+      margin: 10px 0;
+      font-size: 1.03em;
+    }
+    .features-section {
+      margin: 38px 0 22px;
+    }
+    .features-list {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      margin: 0 auto; justify-content: center;
+    }
+    .feature-card {
+      background: linear-gradient(100deg, #2240b6 75%, #41a9e4 100%);
+      color: #fff;
+      border-radius: 10px;
+      padding: 15px 19px;
+      min-width: 170px;
+      font-size: 1em;
+      text-align: center;
+      flex: 1 1 155px;
+      box-shadow: 0 2px 10px rgba(25, 75, 160, 0.07);
+      font-weight: 500;
+    }
+    .accent {
+      color: #ff9800;
+      font-weight: 600;
+    }
+    code {
+      background: #f1f6fc;
+      border-radius: 4px;
+      color: #183057;
+      font-family: 'Source Code Pro', 'Menlo', 'Consolas', monospace;
+      padding: 2px 5px;
+    }
+    @media (max-width: 600px) {
+      .features-list { flex-direction: column; gap: 12px;}
+      .container { padding: 0 6px; }
+      .logo-block img { height: 55px; }
+    }
+  </style>
 </head>
 <body>
-  <div style="text-align:center;margin-top:8vh;">
-    <img src="logo.png" alt="CyberSentinel" style="height:80px;">
+  <div class="logo-block">
+    <img src="cybersentinel_logo.png" alt="CyberSentinel">
     <h1>CyberSentinel</h1>
     <p>Welcome to our Security Gateway – your connection is protected.</p>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <div class="waf-chip">Web Application Firewall</div>
+      <div class="waf-title">About Our WAF Solution</div>
+      <div class="waf-desc">
+        CyberSentinel’s Web Application Firewall (WAF) secures your business from online threats.<br>
+        Detect, block, and log attackers—protecting your applications while you focus on growth.
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">What is a WAF?</div>
+      <div>
+        <b>Web Application Firewalls</b> act as a shield between your apps and the internet. They filter and monitor all incoming requests—protecting you from hackers and data breaches.
+      </div>
+      <ul class="bullets">
+        <li>Stops SQL Injection, Cross-Site Scripting (XSS), and other dangerous exploits.</li>
+        <li>Blocks suspicious traffic and lets real users through.</li>
+        <li>Records attacks for compliance and auditing.</li>
+        <li>Easy to add in front of any website or API.</li>
+      </ul>
+    </div>
+
+    <div class="features-section">
+      <div class="info-title">Key WAF Features</div>
+      <div class="features-list">
+        <div class="feature-card">SQL Injection Blocking</div>
+        <div class="feature-card">XSS & Input Validation</div>
+        <div class="feature-card">IP Blacklist & Rate Limiting</div>
+        <div class="feature-card">Attack Logging Dashboard</div>
+        <div class="feature-card">Real-Time Monitoring</div>
+        <div class="feature-card">Compliance Support</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">How Does It Work?</div>
+      <ul class="bullets">
+        <li>Scans every web request for attack patterns.</li>
+        <li>Blocks and redirects malicious users, showing an “access denied” page.</li>
+        <li>Proxies safe user traffic to your backend Web Server.</li>
+        <li>Admins can review detailed attack attempts anytime.</li>
+      </ul>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">How to Check WAF Functionality</div>
+      <ul class="bullets">
+        <li>
+          <b>Basic Test:</b> Open your browser and visit:<br>
+          <code>http://<span style="color: #325bb9;">192.168.1.88</span>/?id=' OR 1=1--</code><br>
+          <span style="color:#888;">You should see an "Access Denied" or block page, proving SQL injection attacks are stopped.</span>
+        </li>
+        <!-- <li>
+          <b>Advanced Test (using curl):</b><br>
+          <code>
+            curl "http://<span style="color: #325bb9;">your-waf-server</span>/?search=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+          </code>
+          <br>
+          <span style="color:#888;">This simulates a Cross-Site Scripting (XSS) attack. The request should be blocked by the WAF.</span>
+        </li> -->
+        <li>
+          <b>Log Review:</b> After the tests, check your WAF dashboard (usually at <code>http:192.168.1.88:5000</code>) to see if the attack attempts are logged for admins to review.
+        </li>
+      </ul>
+    </div>
   </div>
 </body>
 </html>
