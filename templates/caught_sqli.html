@@ -1,57 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>SQL Injection Detected</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #1a1b26; /* Dark background */
-            color: #e0e0e0; /* Light text */
-            margin: 0;
-            padding: 20px;
-        }
-
-        h1 {
-            color: #ffffff; /* White header */
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: #24283b; /* Dark card background */
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); /* Subtle shadow */
-            text-align: center; /* Center content for modern feel */
-        }
-
-        p {
-            line-height: 1.6;
-            color: #a9b1d6; /* Muted text */
-            margin: 10px 0;
-        }
-
-        .highlight {
-            color: #ff7a7a; /* Red accent for warnings */
-            font-weight: bold;
-        }
-
-        .message {
-            background: #414868; /* Subtle inner card for message */
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>SQL Injection Detected – Access Denied</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #f4f8fb;
+      color: #213251;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .container {
+      max-width: 520px;
+      margin: 60px auto 0;
+      background: #fff;
+      padding: 44px 28px 36px 28px;
+      border-radius: 15px;
+      box-shadow: 0 6px 28px 0 rgba(37,71,145,0.11);
+      text-align: center;
+      border-left: 6px solid #325bb9;
+    }
+    h1 {
+      color: #2240b6;
+      font-size: 2rem;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+      font-weight: 800;
+    }
+    .highlight {
+      color: #f04444;
+      font-weight: 600;
+    }
+    .ip, .attempted {
+      background: #f1f6fc;
+      border-radius: 6px;
+      margin: 10px auto;
+      font-size: 1.09em;
+      padding: 8px 13px;
+      display: inline-block;
+      font-family: 'Consolas', 'Source Code Pro', monospace;
+      color: #27408b;
+      letter-spacing: .3px;
+    }
+    .message {
+      margin-top: 24px;
+      padding: 15px 12px;
+      background: linear-gradient(94deg, #e8f1fc 80%, #b9d6fa 100%);
+      color: #234376;
+      border-radius: 10px;
+      font-weight: 500;
+      box-shadow: 0 2px 8px 0 rgba(55,100,180,0.05);
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Access Denied</h1>
-        <p><strong class="highlight">Your IP:</strong> {{ ip }}</p>
-        <p><strong class="highlight">Attempted Injection:</strong> {{ attempted }}</p>
-        <div class="message">
-            <p>This attempt has been logged. Contact support if this is an error.</p>
-        </div>
+  <div class="container">
+    <h1>Access Denied</h1>
+    <div class="ip">
+      <span class="highlight">Your IP:</span> {{ ip }}
     </div>
+    <div class="attempted">
+      <span class="highlight">Attempted Injection:</span> {{ attempted }}
+    </div>
+    <div class="message">
+      This attempt has been <b>logged and blocked</b>.<br>
+      If you believe this is an error, please contact support.
+    </div>
+  </div>
 </body>
 </html>

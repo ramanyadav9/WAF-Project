@@ -1,139 +1,183 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Company Dashboard</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #1a1b26; /* Dark background */
-            color: #e0e0e0; /* Light text */
-            margin: 0;
-            padding: 20px;
-        }
-
-        h1, h2 {
-            color: #ffffff; /* White headers */
-        }
-
-        img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 8px;
-        }
-
-        .container {
-            max-width: 1200px; /* Wider for table */
-            margin: 0 auto;
-            background: #24283b; /* Dark card background */
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); /* Subtle shadow */
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #414868; /* Row separator */
-        }
-
-        th {
-            background: #1a1b26; /* Header bg */
-            color: #ffffff;
-            font-weight: bold;
-        }
-
-        td {
-            background: #24283b; /* Row bg */
-        }
-
-        .status-badge {
-            background: #50fa7b; /* Green active badge */
-            color: #1a1b26;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-        }
-
-        p {
-            line-height: 1.6;
-            color: #a9b1d6; /* Muted text */
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>CyberSentinel – Security Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #f4f8fb;
+      color: #213251;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .logo-block {
+      background: linear-gradient(130deg, #e8f1fc 60%, #f4f8fb 100%);
+      border-bottom: 2px solid #385984;
+      text-align: center;
+      padding: 6vh 0 22px 0;
+    }
+    .logo-block img {
+      height: 68px;
+      margin-bottom: 8px;
+      border-radius: 13px;
+      background: #fff;
+      padding: 4px 10px;
+      box-shadow: 0 3px 22px 0 rgba(52,85,140,0.13);
+    }
+    .logo-block h1 {
+      font-size: 2.15rem;
+      font-weight: 800;
+      color: #213251;
+      margin: 7px 0 2px 0;
+      letter-spacing: 2px;
+    }
+    .logo-block p {
+      color: #385984;
+      font-size: 1.04rem;
+      margin-top: 6px;
+      margin-bottom: 9px;
+      font-weight: 450;
+    }
+    .container {
+      max-width: 1020px;
+      margin: 35px auto 0;
+      background: #fff;
+      padding: 30px 18px;
+      border-radius: 16px;
+      box-shadow: 0 6px 26px rgba(40,60,130,0.10);
+    }
+    h2 {
+      color: #253f73;
+      font-size: 1.5em;
+      margin-top: 20px;
+      margin-bottom: 7px;
+    }
+    .stat-row {
+      margin-bottom: 20px;
+    }
+    .stat-row strong {
+      color: #2240b6;
+      font-size: 1.13em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      background: #fafcff;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 2px 16px 0 rgba(25,75,160,0.07);
+    }
+    th, td {
+      padding: 13px 10px 11px 10px;
+      text-align: left;
+      border-bottom: 1px solid #e3eaf7;
+      font-size: 1em;
+    }
+    th {
+      background: #e8f1fc;
+      color: #213251;
+      font-weight: 700;
+      font-size: 1.01em;
+    }
+    td {
+      background: transparent;
+      color: #253f73;
+      font-weight: 430;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .status-badge {
+      background: linear-gradient(90deg,#41a9e4 30%, #2240b6 100%);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.88em;
+      font-weight: 600;
+      box-shadow: 0 2px 7px 0 rgba(65,169,228,0.07);
+      letter-spacing: 1px;
+      display: inline-block;
+    }
+    p {
+      line-height: 1.7;
+      color: #395b88;
+      margin-top: 8px;
+    }
+    @media (max-width:600px) {
+      .container { padding: 13px 3vw; }
+      .logo-block img { height: 48px; }
+      th, td { padding: 9px 6px; font-size: 0.97em; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Company Name</h1>
-        <img src="{{ url_for('static', filename='company_logo.png') }}" alt="Company Logo" width="200">
-        <p>Company details: We specialize in secure web solutions with WAF integration.</p>
-        
-        <h2>Recent SQL Injection Attempts</h2>
-        <p><strong>Total Attempts Logged:</strong> {{ attempt_count }}</p>
-        
-      
-        
-        {% if attempts %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>IP</th>
-                        <th>Attempted</th>
-                        <th>Time</th>
-                        <th>Country</th>
-                        <th>ISP</th>
-                        <th>Status</th> <!-- Added status column with badge -->
-                    </tr>
-                </thead>
-                <tbody id="attempt-list">  <!-- ID for JS targeting -->
-                    {% for attempt in attempts %}
-                        <tr>
-                            <td>{{ loop.index }}</td> <!-- Use loop index as ID or fetch real ID from DB -->
-                            <td>{{ attempt[0] }}</td> <!-- IP -->
-                            <td>{{ attempt[1] }}</td> <!-- Attempted -->
-                            <td>{{ attempt[2] }}</td> <!-- Time -->
-                            <td>{{ attempt[3] }}</td> <!-- Country -->
-                            <td>{{ attempt[4] }}</td> <!-- ISP -->
-                            <td><span class="status-badge">Blocked</span></td> <!-- Example badge -->
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p>No attempts logged yet.</p>
-        {% endif %}
-    </div>
+  <div class="logo-block">
+    <img src="{{ url_for('static', filename='company_logo.png') }}" alt="CyberSentinel Logo">
+    <h1>CyberSentinel</h1>
+    <p>Welcome to our Security Gateway – your connection is protected.</p>
+  </div>
 
-    <script>
-        async function fetchAttempts() {
-            const response = await fetch('/api/attempts');
-            const attempts = await response.json();
-            const tbody = document.getElementById('attempt-list');
-            tbody.innerHTML = '';  // Clear existing rows
-            attempts.forEach((attempt, index) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>${attempt.ip}</td>
-                    <td>${attempt.attempted}</td>
-                    <td>${attempt.timestamp}</td>
-                    <td>${attempt.country}</td>
-                    <td>${attempt.isp}</td>
-                    <td><span class="status-badge">Blocked</span></td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
+  <div class="container">
+    <h2>Recent SQL Injection Attempts</h2>
+    <div class="stat-row"><strong>Total Attempts Logged:</strong> {{ attempt_count }}</div>
+    {% if attempts %}
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>IP</th>
+            <th>Attempted</th>
+            <th>Time</th>
+            <th>Country</th>
+            <th>ISP</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="attempt-list">
+          {% for attempt in attempts %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ attempt[0] }}</td>
+              <td>{{ attempt[1] }}</td>
+              <td>{{ attempt[2] }}</td>
+              <td>{{ attempt[3] }}</td>
+              <td>{{ attempt[4] }}</td>
+              <td><span class="status-badge">Blocked</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No attempts logged yet.</p>
+    {% endif %}
+  </div>
 
-        // Poll every 5 seconds
-        setInterval(fetchAttempts, 5000);
+  <script>
+    async function fetchAttempts() {
+      const response = await fetch('/api/attempts');
+      const attempts = await response.json();
+      const tbody = document.getElementById('attempt-list');
+      tbody.innerHTML = '';
+      attempts.forEach((attempt, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${attempt.ip}</td>
+            <td>${attempt.attempted}</td>
+            <td>${attempt.timestamp}</td>
+            <td>${attempt.country}</td>
+            <td>${attempt.isp}</td>
+            <td><span class="status-badge">Blocked</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
 
-        // Initial fetch on load
-        fetchAttempts();
-    </script>
+    setInterval(fetchAttempts, 5000);
+    fetchAttempts();
+  </script>
 </body>
 </html>
