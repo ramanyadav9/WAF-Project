@@ -81,11 +81,7 @@ def waf_detect():
         return True, f"QueryString: {decoded_qs}"
     return False, ""
 
-@app.route('/caught-sqli')
-def caught_sqli():
-    attempted = request.args.get('attempted', '')
-    ip = request.args.get('ip', '')
-    return render_template('caught_sqli.html', attempted=attempted, ip=ip)
+
 
 
 
