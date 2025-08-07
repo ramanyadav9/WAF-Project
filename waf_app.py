@@ -10,57 +10,29 @@ app = Flask(__name__)
 
 # --- SQLi detection logic (unchanged) ---
 SQLI_PATTERNS = [
-    # Classic meta-characters and SQLi basics
     r"'", r"--", r";", r"/\*", r"\*/",
-    r"(\%27)|(\')|(\-\-)|(\%23)|(#)",     # Encoded/metacharacter variants
-
-    # SQLi keywords/commands – word boundary, loose
+    r"(\%27)|(\')|(\-\-)|(\%23)|(#)",
     r"\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|ASCII|CHR|SUBSTR|SUBSTRING|PG_SLEEP|INFORMATION_SCHEMA|XP_|EXECUTE|FETCH|OPEN|ALTER|CREATE|REPLACE|GRANT|REVOKE|TRUNCATE|ARRAY)\b",
-
-    # Delayed or time-based attacks (with optional noise in between)
-    r"(?i)\b(waitfor\s+delay|benchmark\s*\(|sleep\s*\(|pg_sleep\s*\()",
-
-    # Conditional logic / boolean injections with fuzzed spacing or symbols
-    r"(?i)([\s\W]|^)(or|and)([\s\W]|$).{0,10}?(\d{1,3}\s*=\s*\d{1,3}|'\w*'='\w*')",
-    r"(?i)\|\|\s*\d{1,3}\s*=\s*\d{1,3}\|\|",         # Pipes trick: ||1=1||
-
-    # Common multi-statement attacks (for MySQL, MSSQL, etc)
-    r"(?i);.*?(drop|truncate|delete|insert|exec|update|union)\b",
-
-    # UNION SELECT, even with comments/whitespace between
-    r"(?i)union(\s|\/\*.*?\*\/|%[0-9a-fA-F]{2}){0,10}select",
-
-    # Hex, numeric, LIKE tricks, casting, etc
+    r"\b(waitfor\s+delay|benchmark\s*\(|sleep\s*\(|pg_sleep\s*\()",
     r"\b(?:0x[0-9a-fA-F]+)\b",
-    r"(?i)[\w]*\s+like\s+\w*['\"]",
-    r"(?i)[\s\(\)]*=\s*\d+",              # Weak/tautology condition ("= 1")
-
-    # Comments, code/noise injection
-    r"(?i)\/\*.*?\*\/",                   # Block comments anywhere
-    r"(?i)--.*$",                         # Inline SQL comments (line ends)
-    r"(?i)#.*$",                          # Hash comment (MySQL style)
-
-    # Typical select-from-where structure
-    r"(?i)\bselect.+from.+where\b",
-
-    # Obfuscation: encoded whitespace (URL, tab, newline, CR)
-    r"%20|%09|%0a|%0d|\t|\n|\r",          
-
-    # Bit-and arithmetic tricks
-    r"(?i)[\s\(\)]*[+|&^][\s\(\)]*\d+",
-    
-    # Stack queries (MSSQL, some MySQL configs)
+    r"[\s\(\)]*=\s*\d+",
+    r"[\w]*\s+like\s+\w*['\"]",
+    r"/\*.*?\*/",
+    r"--.*$",
+    r"#.*$",
+    r";.*?(drop|truncate|delete|insert|exec|update|union)\b",
+    r"union(\s|/\*.*?\*/|%[0-9a-fA-F]{2}){0,10}select",
+    r"\bselect.+from.+where\b",
+    r"%20|%09|%0a|%0d|\t|\n|\r",
+    r"[\s\(\)]*[+|&^][\s\(\)]*\d+",
     r";.*?\b(select|drop|insert|delete|update)\b",
-
-    # Blinds, timing, complicated fuzz vectors
-    r"(?i)(sleep\s*\(\d+\)|benchmark\s*\([^)]+\)|pg_sleep\s*\(\d+\))",
-
-    # 2nd order: subqueries
-    r"(?i)\(\s*select.+\)",
-
-    # Generic: double-encoded single quote or double dash
+    r"(sleep\s*\(\d+\)|benchmark\s*\([^)]+\)|pg_sleep\s*\(\d+\))",
+    r"\(\s*select.+\)",
     r"%2527|%252D%252D",
+    r"\|\|\s*\d{1,3}\s*=\s*\d{1,3}\|\|",
 ]
+SQLI_REGEX = re.compile("|".join(SQLI_PATTERNS), re.IGNORECASE)
+
 
 
 SQLI_REGEX = re.compile("|".join(SQLI_PATTERNS), re.IGNORECASE)
