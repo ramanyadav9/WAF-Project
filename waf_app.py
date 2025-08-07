@@ -11,14 +11,20 @@ app = Flask(__name__)
 # --- SQLi detection logic (unchanged) ---
 SQLI_PATTERNS = [
     r"'", r"--", r";", r"/\*", r"\*/",
-    r"\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|IF)\b",
-    r"\b(0x[0-9a-fA-F]+)\b",
-    r"\b(ASCII|CHR|SUBSTR|SUBSTRING)\b",
-    r"\b(EXECUTE|FETCH|OPEN)\b",
-    r"\b(ALTER|CREATE|REPLACE|GRANT|REVOKE|TRUNCATE)\b",
-    r"\b(INFORMATION_SCHEMA|PG_SLEEP)\b",
-    r"\b(ARRAY)\b"
+    r"(\%27)|(\')|(\-\-)|(\%23)|(#)",  # Encoded single quote, comment signs
+    r"\b(OR|AND|SELECT|DELETE|INSERT|UPDATE|DROP|UNION|EXEC|SLEEP|WAITFOR|CAST|CONVERT|DECLARE|XP_CMDSHELL|XP_DIRTREE|LOAD_FILE|BENCHMARK|CHAR|CONCAT|ASCII|CHR|SUBSTR|SUBSTRING|PG_SLEEP|INFORMATION_SCHEMA|XP_|EXECUTE|FETCH|OPEN|ALTER|CREATE|REPLACE|GRANT|REVOKE|TRUNCATE|ARRAY)\b",
+    r"(?i)\b(waitfor\s+delay|benchmark\(|sleep\(|pg_sleep\()",    # Delayed/timing attacks
+    r"\b(?:0x[0-9a-fA-F]+)\b",                                   # Hex values
+    r"(?i)[\s\(\)]*=\s*\d+",                                     # Weak numeric conditions
+    r"(?i)[\w]*\s+like\s+\w*['\"]",                              # LIKE with wildcards/quotes
+    r"(?i)\/\*.*\*\/",                                           # Block comments
+    r"(?i)--.*$",                                                # End of line comments
+    r"(?i);.*(drop|truncate|delete|insert|exec)\s",              # Multi-statement attempts
+    r"(?i)union(.{0,10})select",                                 # UNION fuzzed with whitespace
+    r"(?i)\b(select.+from.+where)\b",                            # Simple select-from-where
+    r"(?i)[\s]|%20|(\t)|(\n)|(\r)|(%0a)|(%0d)",                  # Obfuscation (spaces, tabs, encoding)
 ]
+
 SQLI_REGEX = re.compile("|".join(SQLI_PATTERNS), re.IGNORECASE)
 
 def is_sqli_attempt(value):
