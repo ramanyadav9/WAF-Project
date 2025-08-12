@@ -43,7 +43,7 @@ def get_client_ip(request):
     return forwarded.split(',')[0].strip() if forwarded else request.remote_addr
 
 def init_db():
-    conn = sqlite3.connect('sqli_logs.db')
+    conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS attempts (
