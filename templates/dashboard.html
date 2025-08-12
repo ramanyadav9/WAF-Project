@@ -106,6 +106,8 @@
       color: #395b88;
       margin-top: 8px;
     }
+    .disrupted { background-color: #ffdddd; }  /* Red for blocked */
+    .allowed { background-color: #ddffdd; }    /* Green for allowed */
     @media (max-width:600px) {
       .container { padding: 13px 3vw; }
       .logo-block img { height: 48px; }
@@ -119,52 +121,67 @@
     <h1>CyberSentinel</h1>
     <p>Welcome to our Security Gateway – your connection is protected.</p>
   </div>
-
   <div class="container">
-    <h2>Recent SQL Injection Attempts</h2>
-    <div class="stat-row"><strong>Total Attempts Logged:</strong> {{ attempt_count }}</div>
-    {% if attempts %}
+    <h2>CyberSentinel WAF Logs</h2>
+    <div class="stat-row"><strong>Total Logs:</strong> {{ (attempts | length) + (modsec_logs | length) }}</div>
+    {% if attempts or modsec_logs %}
       <table>
         <thead>
           <tr>
             <th>#</th>
+            <th>Type</th>
             <th>IP</th>
-            <th>Attempted</th>
-            <th>Time</th>
+            <th>Details</th>
+            <th>Timestamp</th>
             <th>Country</th>
             <th>ISP</th>
             <th>Status</th>
           </tr>
         </thead>
-        <tbody id="attempt-list">
-          {% for attempt in attempts %}
-            <tr>
-              <td>{{ loop.index }}</td>
-              <td>{{ attempt[0] }}</td>
-              <td>{{ attempt[1] }}</td>
-              <td>{{ attempt[2] }}</td>
-              <td>{{ attempt[3] }}</td>
-              <td>{{ attempt[4] }}</td>
-              <td><span class="status-badge">Blocked</span></td>
-            </tr>
+        <tbody id="log-list">
+          {% set all_logs = attempts + modsec_logs %}
+          {% for log in all_logs %}
+            {% if log in attempts %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>SQL Injection</td>
+                <td>{{ log[0] }}</td>
+                <td>{{ log[1] }}</td>
+                <td>{{ log[2] }}</td>
+                <td>{{ log[3] }}</td>
+                <td>{{ log[4] }}</td>
+                <td><span class="status-badge">Blocked</span></td>
+              </tr>
+            {% else %}
+              <tr class="{% if log[5] %}disrupted{% else %}allowed{% endif %}">
+                <td>{{ loop.index }}</td>
+                <td>CyberSentinel WAF</td>
+                <td>{{ log[1] }}</td>
+                <td>URI: {{ log[2] }} | Method: {{ log[3] }} | Rules: {{ log[6] }}</td>
+                <td>{{ log[0] }}</td>
+                <td>N/A</td>  <!-- Placeholder; can add geolocation if needed -->
+                <td>N/A</td>  <!-- Placeholder -->
+                <td>{{ 'Blocked' if log[5] else 'Allowed' }}</td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     {% else %}
-      <p>No attempts logged yet.</p>
+      <p>No logs yet.</p>
     {% endif %}
   </div>
-
   <script>
     async function fetchAttempts() {
       const response = await fetch('/api/attempts');
       const attempts = await response.json();
-      const tbody = document.getElementById('attempt-list');
+      const tbody = document.getElementById('log-list');
       tbody.innerHTML = '';
       attempts.forEach((attempt, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${index + 1}</td>
+            <td>SQL Injection</td>
             <td>${attempt.ip}</td>
             <td>${attempt.attempted}</td>
             <td>${attempt.timestamp}</td>
@@ -174,8 +191,8 @@
         `;
         tbody.appendChild(tr);
       });
+      // Note: ModSecurity logs would need a separate API endpoint for live refresh if desired
     }
-
     setInterval(fetchAttempts, 5000);
     fetchAttempts();
   </script>
