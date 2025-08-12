@@ -41,7 +41,7 @@ def init_db():
 with app.app_context():
     init_db()
 
-# Parser for ModSecurity JSON logs (filters to key fields)
+# Parser for Cyber Sentinel JSON logs (filters to key fields)
 def parse_modsec_json(line):
     try:
         obj = json.loads(line)
@@ -101,7 +101,7 @@ def admin_logs():
     cursor.execute('SELECT ip, attempted, timestamp, country, isp FROM attempts ORDER BY id DESC')
     attempts = cursor.fetchall()
     cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules FROM modsec_logs ORDER BY id DESC')
-    modsec_logs = cursor.fetchall()  # Fetch ModSecurity logs
+    modsec_logs = cursor.fetchall()  # Fetch Cyber Sentinel logs
     conn.close()
     return render_template('dashboard.html', attempts=attempts, modsec_logs=modsec_logs)  # Pass both to template
 

@@ -3,6 +3,7 @@ import requests as py_requests
 from flask import Flask, request, Response, render_template, redirect, url_for, stream_with_context, send_from_directory
 from datetime import datetime
 from urllib.parse import unquote_plus
+from flask import abort
 
 app = Flask(__name__)
 
@@ -109,11 +110,11 @@ def caught_attack():
     ip = request.args.get('ip', get_client_ip(request))
     return render_template('caught_attack.html', attempted=attempted, ip=ip)
 
-# Updated proxy route: Proxy all requests to ModSecurity for detection, catch blocks
+# Updated proxy route: Proxy all requests to Cyber Sentinel for detection, catch blocks
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 def waf_proxy(path):
-    # Optional: Your basic SQLi check as fallback (comment out if you want ModSecurity to handle all)
+    # Optional: Your basic SQLi check as fallback (comment out if you want Cyber Sentinel to handle all)
     detected, payload = waf_detect()
     if detected:
         client_ip = get_client_ip(request)
@@ -124,7 +125,7 @@ def waf_proxy(path):
     if path == '':
         return send_from_directory(os.path.join(app.root_path, 'static_home'), 'index.html')
 
-    # Proxy to Apache/ModSecurity for advanced detection
+    # Proxy to Apache/Cyber Sentinel for advanced detection
     backend_url = f"http://127.0.0.1:8090/{path}?{request.query_string.decode('utf-8')}"
     try:
         resp = py_requests.request(
@@ -136,10 +137,10 @@ def waf_proxy(path):
             allow_redirects=False,
             stream=True
         )
-        # If ModSecurity blocks (403), redirect to custom page
+        # If Cyber Sentinel blocks (403), redirect to custom page
         if resp.status_code == 403:
             client_ip = get_client_ip(request)
-            attempted = "Advanced Attack Detected by ModSecurity"  # Can enhance with log details if needed
+            attempted = "Advanced Attack Detected by Cyber Sentinel"  # Can enhance with log details if needed
             log_attempt(client_ip, attempted)  # Log the block
             return redirect(url_for('caught_attack', attempted=attempted))
 
@@ -148,7 +149,21 @@ def waf_proxy(path):
         headers = [(name, value) for name, value in resp.raw.headers.items() if name.lower() not in excluded_headers]
         return Response(stream_with_context(resp.iter_content(chunk_size=1024)), resp.status_code, headers)
     except py_requests.RequestException as e:
-        return f"Error proxying to ModSecurity backend: {str(e)}", 502
+        return f"Error proxying to Cyber Sentinel backend: {str(e)}", 502
+    
+    # Custom 404 handler
+@app.errorhandler(404)
+def not_found(error):
+    ip = get_client_ip(request)  # Use your existing function
+    return render_template('not_found.html', ip=ip), 404
+
+# Custom 500 handler
+@app.errorhandler(500)
+def internal_error(error):
+    ip = get_client_ip(request)  # Use your existing function
+    # Optional: Log the error for debugging
+    print(f"Internal error: {error}")  # Or use logging module
+    return render_template('internal_error.html', ip=ip), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=80)
