@@ -41,7 +41,6 @@ def get_client_ip(request):
         or request.headers.get('CF-Connecting-IP')
     )
     return forwarded.split(',')[0].strip() if forwarded else request.remote_addr
-
 def init_db():
     conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
     cursor = conn.cursor()
@@ -64,12 +63,11 @@ def init_db():
             method TEXT,
             status TEXT,
             disrupted BOOLEAN,
-            matched_rules TEXT  # Summarized as JSON string
+            matched_rules TEXT
         )
     ''')
     conn.commit()
     conn.close()
-
 
 with app.app_context():
     init_db()

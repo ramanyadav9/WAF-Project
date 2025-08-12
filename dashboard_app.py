@@ -31,7 +31,7 @@ def init_db():
             method TEXT,
             status TEXT,
             disrupted BOOLEAN,
-            matched_rules TEXT  # Summarized as JSON string
+            matched_rules TEXT
         )
     ''')
     conn.commit()
