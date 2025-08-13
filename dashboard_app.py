@@ -57,26 +57,44 @@ def parse_modsec_json(line):
     aud = data.get("audit_data", {}) or {}
     msgs = aud.get("messages", []) or []
 
-    # --- Determine attack type ---
+    # --- Determine attack type from tags/messages ---
     attack_type = "Unknown"
     all_text = " ".join(msgs).lower()
-    if "attack-xss" in all_text or " xss " in all_text:
+    if "attack-xss" in all_text or "xss" in all_text:
         attack_type = "XSS"
-    elif "attack-sqli" in all_text or "sql injection" in all_text or " sqli " in all_text:
+    elif "attack-sqli" in all_text or "sql injection" in all_text or "sqli" in all_text:
         attack_type = "SQL Injection"
-    elif "attack-rfi" in all_text:
+    elif "attack-rfi" in all_text or "remote file inclusion" in all_text:
         attack_type = "Remote File Inclusion"
-    elif "attack-lfi" in all_text:
+    elif "attack-lfi" in all_text or "local file inclusion" in all_text:
         attack_type = "Local File Inclusion"
-    elif "attack-rce" in all_text:
+    elif "attack-rce" in all_text or "remote code execution" in all_text:
         attack_type = "Remote Code Execution"
 
     # --- Extract attack command ---
-    attack_command = req.get("request_line") or tx.get("uri") or ""
-    headers = req.get("headers", {}) or {}
-    ref = headers.get("Referer") or headers.get("referer") or ""
-    if (not attack_command or attack_command == "") and any(tok in ref.lower() for tok in ("<script", "javascript:", "onerror=", "onload=", "%3cscript", "alert(")):
-        attack_command = ref
+    attack_command = req.get("request_line", "") or tx.get("uri", "")
+
+    # Keep only the query part if present
+    if '?' in attack_command:
+        attack_command = attack_command.split('?', 1)[1]
+
+    # Check arguments dict if request_line/uri didn't give payload
+    args = req.get("arguments", {}) or {}
+    if not attack_command and args:
+        attack_command = "&".join(f"{k}={v}" for k, v in args.items())
+
+    # Check headers for suspicious content
+    if not attack_command:
+        headers = req.get("headers", {}) or {}
+        for hname in ("Referer", "User-Agent", "referer", "user-agent"):
+            hval = headers.get(hname)
+            if hval and any(tok in hval.lower() for tok in ("<script", "javascript:", "onerror=", "onload=", "http://", "https://")):
+                attack_command = hval
+                break
+
+    # If still empty, mark as unknown
+    if not attack_command:
+        attack_command = "Unknown"
 
     # --- Extract matched rules ---
     matched_rules = []
@@ -86,13 +104,13 @@ def parse_modsec_json(line):
             try:
                 rid = msg.split("[id \"")[1].split("\"]")[0]
             except IndexError:
-                pass
+                rid = None
         rule_msg = None
         if "[msg \"" in msg:
             try:
                 rule_msg = msg.split("[msg \"")[1].split("\"]")[0]
             except IndexError:
-                pass
+                rule_msg = None
         matched_rules.append({
             "id": rid or "unknown",
             "message": rule_msg or msg
@@ -107,7 +125,7 @@ def parse_modsec_json(line):
         "disrupted": bool(aud.get("action", {}).get("intercepted", False)),
         "matched_rules": json.dumps(matched_rules),
         "log_type": attack_type,
-        "attack_command": attack_command or "Unknown"
+        "attack_command": attack_command
     }
 
 # -------------------- Background Tailer --------------------
