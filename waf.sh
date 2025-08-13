@@ -18,31 +18,34 @@ start() {
 
     echo "[+] Both WAF and dashboard started."
 }
-
 stop() {
     echo "[*] Stopping WAF proxy..."
-    [[ -f wafproxy.pid ]] && sudo kill -9 $(cat wafproxy.pid) && rm -f wafproxy.pid
+    if [[ -f wafproxy.pid ]]; then
+        if ps -p $(cat wafproxy.pid) > /dev/null 2>&1; then
+            sudo kill -9 $(cat wafproxy.pid)
+            echo "    → Stopped by PID file."
+        else
+            echo "    → PID file exists but process not found."
+        fi
+        rm -f wafproxy.pid
+    else
+        echo "    → PID file missing, killing by name..."
+        sudo pkill -f "gunicorn.*waf_app:app"
+    fi
 
     echo "[*] Stopping Dashboard..."
-    [[ -f dashboard.pid ]] && kill -9 $(cat dashboard.pid) && rm -f dashboard.pid
+    if [[ -f dashboard.pid ]]; then
+        if ps -p $(cat dashboard.pid) > /dev/null 2>&1; then
+            kill -9 $(cat dashboard.pid)
+            echo "    → Stopped by PID file."
+        else
+            echo "    → PID file exists but process not found."
+        fi
+        rm -f dashboard.pid
+    else
+        echo "    → PID file missing, killing by name..."
+        pkill -f "gunicorn.*dashboard_app:app"
+    fi
 
     echo "[+] Both services stopped."
 }
-
-status() {
-    proxy_running=0
-    dash_running=0
-    [[ -f wafproxy.pid ]] && ps -p $(cat wafproxy.pid) > /dev/null 2>&1 && proxy_running=1
-    [[ -f dashboard.pid ]] && ps -p $(cat dashboard.pid) > /dev/null 2>&1 && dash_running=1
-    echo "WAF proxy running:    $([[ $proxy_running -eq 1 ]] && echo YES || echo NO)"
-    echo "Dashboard running:    $([[ $dash_running -eq 1 ]] && echo YES || echo NO)"
-}
-
-case "$1" in
-    start)  start ;;
-    stop)   stop  ;;
-    status) status ;;
-    *)
-        echo "Usage: waf {start|stop|status}"
-        ;;
-esac
