@@ -5,217 +5,176 @@
   <title>CyberSentinel – Security Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body {
-      background: #f4f8fb;
-      color: #213251;
-      margin: 0;
-      padding: 0;
-      font-family: 'Segoe UI', Arial, sans-serif;
+    :root {
+      --blue1:#213251; --blue2:#385984; --blue3:#2240b6; --blue4:#41a9e4;
+      --bg:#f4f8fb; --card:#fff; --table:#fafcff; --line:#e3eaf7;
     }
+    body { background: var(--bg); color: var(--blue1); margin:0; font-family: 'Segoe UI', Arial, sans-serif; }
     .logo-block {
       background: linear-gradient(130deg, #e8f1fc 60%, #f4f8fb 100%);
-      border-bottom: 2px solid #385984;
-      text-align: center;
-      padding: 6vh 0 22px 0;
+      border-bottom: 2px solid var(--blue2);
+      text-align: center; padding: 6vh 0 22px 0;
     }
     .logo-block img {
-      height: 68px;
-      margin-bottom: 8px;
-      border-radius: 13px;
-      background: #fff;
-      padding: 4px 10px;
-      box-shadow: 0 3px 22px 0 rgba(52,85,140,0.13);
+      height: 68px; margin-bottom: 8px; border-radius: 13px; background: #fff; padding: 4px 10px;
+      box-shadow: 0 3px 22px rgba(52,85,140,0.13);
     }
-    .logo-block h1 {
-      font-size: 2.15rem;
-      font-weight: 800;
-      color: #213251;
-      margin: 7px 0 2px 0;
-      letter-spacing: 2px;
-    }
-    .logo-block p {
-      color: #385984;
-      font-size: 1.04rem;
-      margin-top: 6px;
-      margin-bottom: 9px;
-      font-weight: 450;
-    }
+    .logo-block h1 { font-size: 2.15rem; font-weight: 800; color: var(--blue1); margin: 7px 0 2px; letter-spacing: 2px; }
+    .logo-block p  { color: var(--blue2); font-size: 1.04rem; margin: 6px 0 9px; font-weight: 450; }
     .container {
-      max-width: 1020px;
-      margin: 35px auto 0;
-      background: #fff;
-      padding: 30px 18px;
-      border-radius: 16px;
-      box-shadow: 0 6px 26px rgba(40,60,130,0.10);
+      max-width: 1100px; margin: 35px auto 40px; background: var(--card);
+      padding: 22px 18px; border-radius: 16px; box-shadow: 0 6px 26px rgba(40,60,130,0.10);
     }
-    h2 {
-      color: #253f73;
-      font-size: 1.5em;
-      margin-top: 20px;
-      margin-bottom: 7px;
-    }
-    .stat-row {
-      margin-bottom: 20px;
-    }
-    .stat-row strong {
-      color: #2240b6;
-      font-size: 1.13em;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-      background: #fafcff;
-      border-radius: 14px;
-      overflow: hidden;
-      box-shadow: 0 2px 16px 0 rgba(25,75,160,0.07);
-    }
-    th, td {
-      padding: 13px 10px 11px 10px;
-      text-align: left;
-      border-bottom: 1px solid #e3eaf7;
-      font-size: 1em;
-    }
-    th {
-      background: #e8f1fc;
-      color: #213251;
-      font-weight: 700;
-      font-size: 1.01em;
-    }
-    td {
-      background: transparent;
-      color: #253f73;
-      font-weight: 430;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    .status-badge {
-      background: linear-gradient(90deg,#41a9e4 30%, #2240b6 100%);
-      color: #fff;
-      padding: 4px 12px;
-      border-radius: 6px;
-      font-size: 0.88em;
-      font-weight: 600;
-      box-shadow: 0 2px 7px 0 rgba(65,169,228,0.07);
-      letter-spacing: 1px;
-      display: inline-block;
-    }
-    p {
-      line-height: 1.7;
-      color: #395b88;
-      margin-top: 8px;
-    }
-    .disrupted { background-color: #ffdddd; }  /* Red for blocked */
-    .allowed { background-color: #ddffdd; }    /* Green for allowed */
-    #pagination { margin-top: 10px; text-align: center; }
-    @media (max-width:600px) {
-      .container { padding: 13px 3vw; }
-      .logo-block img { height: 48px; }
-      th, td { padding: 9px 6px; font-size: 0.97em; }
+    h2 { color: #253f73; font-size: 1.5em; margin: 10px 0 4px; }
+    .stat-row { margin-bottom: 10px; color: var(--blue2); }
+    .stat-row strong { color: var(--blue3); }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; background: var(--table);
+      border-radius: 14px; overflow: hidden; box-shadow: 0 2px 16px rgba(25,75,160,0.07); }
+    th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--line); font-size: 0.98em; }
+    th { background: #e8f1fc; color: var(--blue1); font-weight: 700; }
+    td { color: #253f73; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.85em; color: #fff; }
+    .blocked { background: linear-gradient(90deg,var(--blue4) 30%, var(--blue3) 100%); }
+    .allowed { background: #2e7d32; }
+    .row-blocked { background: #ffe9ea; }
+    .row-allowed { background: #e9ffea; }
+    #pagination { margin-top: 14px; display:flex; align-items:center; gap:10px; justify-content:center; }
+    #pagination button { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background:#fff; cursor:pointer; }
+    #pagination button:disabled { opacity:.5; cursor:not-allowed; }
+    .controls { display:flex; align-items:center; gap:14px; justify-content:space-between; margin: 6px 0 8px; }
+    .controls .right { display:flex; align-items:center; gap:8px; }
+    select { padding:6px 8px; }
+    @media (max-width: 720px){
+      th:nth-child(4), td:nth-child(4) { max-width: 240px; overflow-wrap:anywhere; }
+      th:nth-child(5), td:nth-child(5) { max-width: 240px; overflow-wrap:anywhere; }
     }
   </style>
 </head>
 <body>
   <div class="logo-block">
-    <img src="{{ url_for('static', filename='company_logo.png') }}" alt="CyberSentinel Logo">
+    <img src="{{ url_for('static', filename='cybersentinel_logo.png') }}" alt="CyberSentinel Logo">
     <h1>CyberSentinel</h1>
     <p>Welcome to our Security Gateway – your connection is protected.</p>
   </div>
+
   <div class="container">
-    <h2>CyberSentinel WAF Logs</h2>
-    <div class="stat-row"><strong>Total Logs:</strong> {{ (attempts | length) + (modsec_logs | length) }}</div>
-    {% if attempts or modsec_logs %}
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Type</th>
-            <th>IP</th>
-            <th>Attack Command</th>
-            <th>Rules</th>
-            <th>Timestamp</th>
-            <th>Country</th>
-            <th>ISP</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="log-list">
-          {% set all_logs = attempts + modsec_logs %}
-          {% for log in all_logs %}
-            {% if log in attempts %}
-              <tr>
-                <td>{{ loop.index }}</td>
-                <td>SQL Injection</td>
-                <td>{{ log[0] }}</td>
-                <td>{{ log[1] }}</td>
-                <td>N/A</td>
-                <td>{{ log[2] }}</td>
-                <td>{{ log[3] }}</td>
-                <td>{{ log[4] }}</td>
-                <td><span class="status-badge">Blocked</span></td>
-              </tr>
-            {% else %}
-              <tr class="{% if log[5] %}disrupted{% else %}allowed{% endif %}">
-                <td>{{ loop.index }}</td>
-                <td>{{ log.log_type | default('CyberSentinel WAF') }}</td>
-                <td>{{ log[1] }}</td>
-                <td>{{ log.attack_command | default(log[2]) }}</td>
-                <td>{{ log[6] }}</td>
-                <td>{{ log[0] }}</td>
-                <td>N/A</td>
-                <td>N/A</td>
-                <td>{{ 'Blocked' if log[5] else 'Allowed' }}</td>
-              </tr>
-            {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
-      <div id="pagination"></div>
-    {% else %}
-      <p>No logs yet.</p>
-    {% endif %}
+    <div class="controls">
+      <h2>CyberSentinel WAF Logs</h2>
+      <div class="right">
+        <label for="pageSize">Per page:</label>
+        <select id="pageSize">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+    </div>
+    <div class="stat-row"><strong>Total Logs:</strong> <span id="totalCount">0</span></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Type</th>
+          <th>IP</th>
+          <th>Attack Command</th>
+          <th>Rules</th>
+          <th>Timestamp</th>
+          <th>Country</th>
+          <th>ISP</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="log-list"></tbody>
+    </table>
+
+    <div id="pagination">
+      <button id="prevBtn">Prev</button>
+      <span id="pageInfo">Page 1 of 1</span>
+      <button id="nextBtn">Next</button>
+    </div>
   </div>
+
   <script>
-  
+    let page = 1;
+    let size = 10;
+    let autoTimer = null;
+
+    const tbody = document.getElementById('log-list');
+    const totalCount = document.getElementById('totalCount');
+    const pageInfo = document.getElementById('pageInfo');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const pageSizeSel = document.getElementById('pageSize');
+
+    pageSizeSel.addEventListener('change', () => {
+      size = parseInt(pageSizeSel.value, 10) || 10;
+      page = 1; // reset
+      fetchLogs();
+    });
+
+    prevBtn.onclick = () => { if (page > 1) { page--; fetchLogs(); } };
+    nextBtn.onclick = () => { page++; fetchLogs(); };
+
+    function renderRules(rulesJson) {
+      if (!rulesJson || rulesJson === 'N/A') return 'N/A';
+      try {
+        const arr = JSON.parse(rulesJson);
+        if (!Array.isArray(arr)) return rulesJson;
+        return arr.map(r => `${r.id || 'unknown'}: ${r.message || ''}`).join('<br>');
+      } catch (e) {
+        return rulesJson;
+      }
+    }
+
     async function fetchLogs() {
-  const response = await fetch(`/api/all_logs?page=${page}&size=${size}`);
-  const data = await response.json();
-  const allLogs = data.logs;
-  const total = data.total;
-  const pages = data.pages;
+      const res = await fetch(`/api/all_logs?page=${page}&size=${size}`);
+      const data = await res.json();
 
-  const tbody = document.getElementById('log-list');
-  tbody.innerHTML = '';
-  allLogs.forEach((log, index) => {
-    let rulesDisplay = log.rules;
-    try {
-      const rulesArr = JSON.parse(log.rules);
-      rulesDisplay = rulesArr.map(r => `${r.id}: ${r.message}`).join('<br>');
-    } catch {}
-    const tr = document.createElement('tr');
-    tr.className = log.disrupted ? 'disrupted' : 'allowed';
-    tr.innerHTML = `
-        <td>${index + 1 + (page - 1) * size}</td>
-        <td>${log.type}</td>
-        <td>${log.ip}</td>
-        <td>${log.attack_command}</td>
-        <td>${rulesDisplay}</td>
-        <td>${log.timestamp}</td>
-        <td>${log.country}</td>
-        <td>${log.isp}</td>
-        <td><span class="status-badge">${log.disrupted ? 'Blocked' : 'Allowed'}</span></td>
-    `;
-    tbody.appendChild(tr);
-  });
+      const logs = data.logs || [];
+      const total = data.total || 0;
+      const pages = data.pages || 1;
+      totalCount.textContent = total.toString();
 
-  document.getElementById('pagination').innerHTML = `
-    <button ${page === 1 ? 'disabled' : ''} onclick="page--; fetchLogs()">Prev</button>
-    Page ${page} of ${pages}
-    <button ${page === pages ? 'disabled' : ''} onclick="page++; fetchLogs()">Next</button>
-  `;
-}
+      // protect against going past last page when rows deleted/rotated
+      if (page > pages && pages > 0) {
+        page = pages;
+        return fetchLogs();
+      }
 
+      tbody.innerHTML = '';
+      logs.forEach((log, i) => {
+        const tr = document.createElement('tr');
+        tr.className = log.disrupted ? 'row-blocked' : 'row-allowed';
+        const rulesHtml = renderRules(log.rules);
+
+        tr.innerHTML = `
+          <td>${(i + 1) + (page - 1) * size}</td>
+          <td>${log.type || 'CyberSentinel WAF'}</td>
+          <td>${log.ip || ''}</td>
+          <td style="max-width:420px; overflow-wrap:anywhere;">${log.attack_command || log.uri || ''}</td>
+          <td style="max-width:420px; overflow-wrap:anywhere;">${rulesHtml}</td>
+          <td>${log.timestamp || ''}</td>
+          <td>${log.country || 'N/A'}</td>
+          <td>${log.isp || 'N/A'}</td>
+          <td><span class="badge ${log.disrupted ? 'blocked' : 'allowed'}">${log.disrupted ? 'Blocked' : 'Allowed'}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      pageInfo.textContent = `Page ${pages ? page : 0} of ${pages}`;
+      prevBtn.disabled = (page <= 1);
+      nextBtn.disabled = (page >= pages);
+    }
+
+    function startAuto() {
+      if (autoTimer) clearInterval(autoTimer);
+      autoTimer = setInterval(() => fetchLogs(), 5000);
+    }
+
+    fetchLogs();
+    startAuto();
   </script>
 </body>
 </html>
