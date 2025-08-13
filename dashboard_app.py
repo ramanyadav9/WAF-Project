@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import sqlite3
 import threading
 import time
@@ -32,8 +32,8 @@ def init_db():
             status TEXT,
             disrupted BOOLEAN,
             matched_rules TEXT,
-            log_type TEXT,       -- Classified type (e.g., SQL Injection, XSS)
-            attack_command TEXT  -- Extracted attack details (e.g., URI/query)
+            log_type TEXT DEFAULT 'Unknown',       -- Classified type (e.g., SQL Injection, XSS)
+            attack_command TEXT DEFAULT 'Unknown'  -- Extracted attack details (e.g., URI/query)
         )
     ''')
     conn.commit()
@@ -43,30 +43,30 @@ def init_db():
 with app.app_context():
     init_db()
 
-# Updated parser: Classifies type and extracts attack command
+# Updated parser: Classifies type, extracts attack command, and parses rules
 def parse_modsec_json(line):
     try:
         obj = json.loads(line)
         tx = obj.get('transaction', {})
         audit_data = obj.get('audit_data', {})
         messages = audit_data.get('messages', [])
-        matched = json.dumps([{
-            'rule_id': m.get('rule_id', ''),
-            'message': m.get('message', ''),
-            'severity': m.get('severity', '')
-        } for m in messages])
+        # Parse rules as list of dicts
+        rule_details = [{'rule_id': m.get('rule_id', ''), 'message': m.get('message', '')} for m in messages]
 
-        # Classify type from messages (e.g., look for keywords)
+        # Classify type from messages/rules
         log_type = "Unknown"
-        lower_msgs = json.dumps(messages).lower()
-        if "sqli" in lower_msgs or "sql" in lower_msgs:
-            log_type = "SQL Injection"
-        elif "xss" in lower_msgs:
-            log_type = "XSS"
-        # Add more classifications as needed (e.g., "rfi" for Remote File Inclusion)
+        for m in messages:
+            search = (m.get('rule_id', '') + " " + m.get('message', '')).lower()
+            if "sqli" in search or "sql" in search:
+                log_type = "SQL Injection"
+                break
+            elif "xss" in search:
+                log_type = "XSS"
+                break
+            # Add more (e.g., elif "rfi" in search: log_type = "Remote File Inclusion")
 
-        # Extract attack command (full URI with query)
-        attack_command = tx.get('uri', 'Unknown')
+        # Extract attack command (full path + query from request_line if available)
+        attack_command = tx.get('request_line', '').split(' ')[1] if 'request_line' in tx else tx.get('uri', 'Unknown')
 
         disrupted = audit_data.get('action', '') == 'intercepted'
         return {
@@ -76,11 +76,12 @@ def parse_modsec_json(line):
             'method': tx.get('request_method', ''),
             'status': audit_data.get('status', ''),
             'disrupted': disrupted,
-            'matched_rules': matched,
+            'matched_rules': json.dumps(rule_details),  # Store as JSON string for easy parsing later
             'log_type': log_type,
             'attack_command': attack_command
         }
-    except Exception:
+    except Exception as e:
+        print(f"Parser error: {e}")
         return None
 
 # Background tailer to read and insert logs (updated for new fields)
@@ -134,18 +135,23 @@ def api_attempts():
         for a in attempts
     ])
 
-# New endpoint for live refresh of modsec_logs (includes new fields)
+# Updated endpoint for live refresh of modsec_logs (includes pagination)
 @app.route('/api/modsec_logs')
 def api_modsec_logs():
+    page = int(request.args.get('page', 1))
+    size = int(request.args.get('size', 20))  # Default 20 logs per page
+    offset = (page - 1) * size
     conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command FROM modsec_logs ORDER BY id DESC')
+    cursor.execute('SELECT COUNT(*) FROM modsec_logs')
+    total = cursor.fetchone()[0]
+    cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command FROM modsec_logs ORDER BY id DESC LIMIT ? OFFSET ?', (size, offset))
     modsec_logs = cursor.fetchall()
     conn.close()
     return jsonify([
         {"timestamp": l[0], "client_ip": l[1], "uri": l[2], "method": l[3], "status": l[4], "disrupted": l[5], "matched_rules": l[6], "log_type": l[7], "attack_command": l[8]}
         for l in modsec_logs
-    ])
+    ] + [{"total": total, "page": page, "size": size, "pages": (total + size - 1) // size}])
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
