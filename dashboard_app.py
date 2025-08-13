@@ -52,8 +52,21 @@ def parse_modsec_json(line):
             'rule_id': m.get('rule_id', ''),
             'message': m.get('message', ''),
             'severity': m.get('severity', '')
-        } for m in messages])  # Filter to essential rule info
-        disrupted = audit_data.get('action', '') == 'intercepted'  # Was it blocked?
+        } for m in messages])
+
+        # Classify type from rule tags/message
+        log_type = "Unknown"
+        lower_msgs = json.dumps(messages).lower()
+        if "sqli" in lower_msgs or "sql" in lower_msgs:
+            log_type = "SQL Injection"
+        elif "xss" in lower_msgs:
+            log_type = "XSS"
+        # Add more (e.g., "rfi" for Remote File Inclusion)
+
+        # Extract attack command (full URI with query)
+        attack_command = tx.get('uri', 'Unknown')
+
+        disrupted = audit_data.get('action', '') == 'intercepted'
         return {
             'timestamp': tx.get('time_stamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
             'client_ip': tx.get('client_ip', ''),
@@ -61,7 +74,9 @@ def parse_modsec_json(line):
             'method': tx.get('request_method', ''),
             'status': audit_data.get('status', ''),
             'disrupted': disrupted,
-            'matched_rules': matched
+            'matched_rules': matched,
+            'log_type': log_type,
+            'attack_command': attack_command
         }
     except Exception:
         return None
