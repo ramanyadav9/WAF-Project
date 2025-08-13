@@ -81,12 +81,15 @@ def caught_attack():
     attempted = request.args.get('attempted', 'Unknown Attack')  # Generalized for any attack
     ip = request.args.get('ip', get_client_ip(request))
     return render_template('caught_attack.html', attempted=attempted, ip=ip)
-
 # Updated proxy route: Proxy all requests to Cyber Sentinel for full detection/handling
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 def waf_proxy(path):
-    backend_url = f"http://127.0.0.1:8090/{path}?{request.query_string.decode('utf-8')}"
+    query_string = request.query_string.decode('utf-8')
+    backend_url = f"http://127.0.0.1:8090/{path}"
+    if query_string:
+        backend_url += f"?{query_string}"
+
     try:
         resp = py_requests.request(
             method=request.method,
@@ -97,19 +100,55 @@ def waf_proxy(path):
             allow_redirects=False,
             stream=True
         )
+
+        client_ip = get_client_ip(request)
+
+        # --- Block decision logic ---
+        block_reasons = []
+
+        # 1. If ModSecurity returned HTTP 403, it's blocked
         if resp.status_code == 403:
-            client_ip = get_client_ip(request)
-            attempted = "Attack Detected by Cyber Sentinel"
+            block_reasons.append("403 from ModSecurity")
+
+        # 2. If ModSecurity returned custom headers (optional CRS logging) with XSS/SQLI
+        modsec_msgs = resp.headers.get("X-ModSec-Messages", "")
+        if any(keyword in modsec_msgs.lower() for keyword in ["xss", "sqli"]):
+            block_reasons.append(f"Detected via headers: {modsec_msgs}")
+
+        # 3. Optional: Check the audit log instantly for this IP/request
+        # (lightweight tail read to see if this exact transaction was flagged)
+        try:
+            with open("/var/log/apache2/modsec_audit.log", "rb") as f:
+                lines = f.readlines()[-5:]  # last few entries only
+            for line in lines:
+                try:
+                    entry = json.loads(line)
+                    if entry.get("transaction", {}).get("remote_address") == client_ip:
+                        msgs = entry.get("audit_data", {}).get("messages", [])
+                        tags_str = " ".join(msgs).lower()
+                        if "attack-xss" in tags_str or "attack-sqli" in tags_str:
+                            block_reasons.append("Detected via audit log tags")
+                            break
+                except Exception:
+                    pass
+        except FileNotFoundError:
+            pass
+
+        # If any block reason found -> redirect to caught attack
+        if block_reasons:
+            attempted = f"Attack Detected by Cyber Sentinel ({'; '.join(block_reasons)})"
             log_attempt(client_ip, attempted)
             return redirect(url_for('caught_attack', attempted=attempted))
 
-        # Serve static for safe root (after check)
+        # If safe and root path -> serve homepage
         if path == '' and resp.status_code == 200:
             return send_from_directory(os.path.join(app.root_path, 'static_home'), 'index.html')
 
+        # Pass other responses through untouched
         excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         headers = [(name, value) for name, value in resp.raw.headers.items() if name.lower() not in excluded_headers]
         return Response(stream_with_context(resp.iter_content(chunk_size=1024)), resp.status_code, headers)
+
     except py_requests.RequestException as e:
         return f"Error: {str(e)}", 502
 

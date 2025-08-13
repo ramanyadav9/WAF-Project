@@ -46,43 +46,67 @@ with app.app_context():
 # Updated parser: Classifies type, extracts attack command, and parses rules
 def parse_modsec_json(line):
     try:
-        obj = json.loads(line)
-        tx = obj.get('transaction', {})
-        audit_data = obj.get('audit_data', {})
-        messages = audit_data.get('messages', [])
-        # Parse rules as list of dicts
-        rule_details = [{'rule_id': m.get('rule_id', ''), 'message': m.get('message', '')} for m in messages]
-
-        # Classify type from messages/rules
-        log_type = "Unknown"
-        for m in messages:
-            search = (m.get('rule_id', '') + " " + m.get('message', '')).lower()
-            if "sqli" in search or "sql" in search:
-                log_type = "SQL Injection"
-                break
-            elif "xss" in search:
-                log_type = "XSS"
-                break
-            # Add more (e.g., elif "rfi" in search: log_type = "Remote File Inclusion")
-
-        # Extract attack command (full path + query from request_line if available)
-        attack_command = tx.get('request_line', '').split(' ')[1] if 'request_line' in tx else tx.get('uri', 'Unknown')
-
-        disrupted = audit_data.get('action', '') == 'intercepted'
-        return {
-            'timestamp': tx.get('time_stamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
-            'client_ip': tx.get('client_ip', ''),
-            'uri': tx.get('uri', ''),
-            'method': tx.get('request_method', ''),
-            'status': audit_data.get('status', ''),
-            'disrupted': disrupted,
-            'matched_rules': json.dumps(rule_details),  # Store as JSON string for easy parsing later
-            'log_type': log_type,
-            'attack_command': attack_command
-        }
-    except Exception as e:
-        print(f"Parser error: {e}")
+        data = json.loads(line)
+    except json.JSONDecodeError:
         return None
+
+    tx = data.get("transaction", {})
+    req = data.get("request", {})
+    aud = data.get("audit_data", {})
+    msgs = aud.get("messages", [])
+
+    # --- Determine attack type from tags ---
+    attack_type = "Unknown"
+    all_text = " ".join(msgs).lower()
+    if "attack-xss" in all_text:
+        attack_type = "XSS"
+    elif "attack-sqli" in all_text or "sql injection" in all_text:
+        attack_type = "SQL Injection"
+    elif "attack-rfi" in all_text:
+        attack_type = "Remote File Inclusion"
+    elif "attack-lfi" in all_text:
+        attack_type = "Local File Inclusion"
+    elif "attack-rce" in all_text:
+        attack_type = "Remote Code Execution"
+
+    # --- Extract attack command ---
+    attack_command = req.get("request_line", "")
+    if not attack_command and "uri" in tx:
+        attack_command = tx.get("uri")
+
+    # --- Extract matched rules ---
+    matched_rules = []
+    for msg in msgs:
+        # Extract rule id and message from the raw CRS message string
+        rid = None
+        if "[id \"" in msg:
+            try:
+                rid = msg.split("[id \"")[1].split("\"]")[0]
+            except IndexError:
+                rid = None
+        rule_msg = None
+        if "[msg \"" in msg:
+            try:
+                rule_msg = msg.split("[msg \"")[1].split("\"]")[0]
+            except IndexError:
+                rule_msg = None
+        matched_rules.append({
+            "id": rid or "unknown",
+            "message": rule_msg or msg
+        })
+
+    # Build DB insert payload
+    return {
+        "timestamp": tx.get("time"),
+        "client_ip": tx.get("remote_address"),
+        "uri": tx.get("uri") or req.get("request_line"),
+        "method": req.get("method", ""),
+        "status": str(data.get("response", {}).get("status", "")),
+        "disrupted": bool(aud.get("action", {}).get("intercepted", False)),
+        "matched_rules": json.dumps(matched_rules),
+        "log_type": attack_type,
+        "attack_command": attack_command
+    }
 
 # Background tailer to read and insert logs (updated for new fields)
 def tail_log():
@@ -136,22 +160,71 @@ def api_attempts():
     ])
 
 # Updated endpoint for live refresh of modsec_logs (includes pagination)
-@app.route('/api/modsec_logs')
-def api_modsec_logs():
+@app.route('/api/all_logs')
+def api_all_logs():
     page = int(request.args.get('page', 1))
-    size = int(request.args.get('size', 20))  # Default 20 logs per page
+    size = int(request.args.get('size', 10))  # default 10 per page
     offset = (page - 1) * size
+
     conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM modsec_logs')
-    total = cursor.fetchone()[0]
-    cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command FROM modsec_logs ORDER BY id DESC LIMIT ? OFFSET ?', (size, offset))
-    modsec_logs = cursor.fetchall()
+
+    # Fetch attempts (SQLi custom detection logs)
+    cursor.execute('SELECT id, ip, attempted, timestamp, country, isp FROM attempts')
+    attempts = [
+        {
+            "id": row[0],
+            "timestamp": row[3],
+            "type": "SQL Injection",
+            "ip": row[1],
+            "attack_command": row[2],
+            "rules": "N/A",
+            "country": row[4],
+            "isp": row[5],
+            "disrupted": True
+        }
+        for row in cursor.fetchall()
+    ]
+
+    # Fetch ModSecurity logs
+    cursor.execute('''
+        SELECT id, timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command
+        FROM modsec_logs
+    ''')
+    modsec_logs = [
+        {
+            "id": row[0],
+            "timestamp": row[1],
+            "type": row[8] or "CyberSentinel WAF",
+            "ip": row[2],
+            "attack_command": row[9] or row[3],
+            "rules": row[7],
+            "country": "N/A",
+            "isp": "N/A",
+            "disrupted": bool(row[6])
+        }
+        for row in cursor.fetchall()
+    ]
+
     conn.close()
-    return jsonify([
-        {"timestamp": l[0], "client_ip": l[1], "uri": l[2], "method": l[3], "status": l[4], "disrupted": l[5], "matched_rules": l[6], "log_type": l[7], "attack_command": l[8]}
-        for l in modsec_logs
-    ] + [{"total": total, "page": page, "size": size, "pages": (total + size - 1) // size}])
+
+    # Merge and sort all logs newest → oldest
+    all_logs = attempts + modsec_logs
+    all_logs.sort(key=lambda x: datetime.strptime(x["timestamp"], "%d/%b/%Y:%H:%M:%S.%f %z"), reverse=True)
+
+    # Pagination
+    total = len(all_logs)
+    paginated_logs = all_logs[offset:offset + size]
+    total_pages = (total + size - 1) // size
+
+    return jsonify({
+        "logs": paginated_logs,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": total_pages
+    })
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

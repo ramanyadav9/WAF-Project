@@ -177,73 +177,45 @@
     {% endif %}
   </div>
   <script>
-    let page = 1, size = 25;
+  
     async function fetchLogs() {
-      const attemptsResponse = await fetch('/api/attempts');
-      const attempts = await attemptsResponse.json();
-      const modsecResponse = await fetch(`/api/modsec_logs?page=${page}&size=${size}`);
-      const modsecData = await modsecResponse.json();
-      const modsecLogs = modsecData.logs || [];  // Use paginated logs
-      const total = modsecData.total || 0;
-      const pages = modsecData.pages || 1;
+  const response = await fetch(`/api/all_logs?page=${page}&size=${size}`);
+  const data = await response.json();
+  const allLogs = data.logs;
+  const total = data.total;
+  const pages = data.pages;
 
-      // Combine and sort by timestamp
-      const allLogs = [
-        ...attempts.map(log => ({ 
-          type: 'SQL Injection', 
-          ip: log.ip, 
-          attack_command: log.attempted, 
-          rules: 'N/A', 
-          timestamp: log.timestamp, 
-          country: log.country, 
-          isp: log.isp, 
-          disrupted: 'Blocked' 
-        })),
-        ...modsecLogs.map(log => ({ 
-          type: log.log_type || 'CyberSentinel WAF', 
-          ip: log.client_ip, 
-          attack_command: log.attack_command || log.uri, 
-          rules: log.matched_rules,  // JSON string for now
-          timestamp: log.timestamp, 
-          country: 'N/A', 
-          isp: 'N/A', 
-          disrupted: log.disrupted ? 'Blocked' : 'Allowed' 
-        }))
-      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const tbody = document.getElementById('log-list');
+  tbody.innerHTML = '';
+  allLogs.forEach((log, index) => {
+    let rulesDisplay = log.rules;
+    try {
+      const rulesArr = JSON.parse(log.rules);
+      rulesDisplay = rulesArr.map(r => `${r.id}: ${r.message}`).join('<br>');
+    } catch {}
+    const tr = document.createElement('tr');
+    tr.className = log.disrupted ? 'disrupted' : 'allowed';
+    tr.innerHTML = `
+        <td>${index + 1 + (page - 1) * size}</td>
+        <td>${log.type}</td>
+        <td>${log.ip}</td>
+        <td>${log.attack_command}</td>
+        <td>${rulesDisplay}</td>
+        <td>${log.timestamp}</td>
+        <td>${log.country}</td>
+        <td>${log.isp}</td>
+        <td><span class="status-badge">${log.disrupted ? 'Blocked' : 'Allowed'}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
 
-      const tbody = document.getElementById('log-list');
-      tbody.innerHTML = '';
-      allLogs.forEach((log, index) => {
-        let rulesDisplay = log.rules;
-        try {
-          const rulesArr = JSON.parse(log.rules);
-          rulesDisplay = rulesArr.map(r => `${r.rule_id}: ${r.message}`).join('<br>');
-        } catch {}
-        const tr = document.createElement('tr');
-        tr.className = log.disrupted === 'Blocked' ? 'disrupted' : 'allowed';
-        tr.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${log.type}</td>
-            <td>${log.ip}</td>
-            <td>${log.attack_command}</td>
-            <td>${rulesDisplay}</td>
-            <td>${log.timestamp}</td>
-            <td>${log.country}</td>
-            <td>${log.isp}</td>
-            <td><span class="status-badge">${log.disrupted}</span></td>
-        `;
-        tbody.appendChild(tr);
-      });
+  document.getElementById('pagination').innerHTML = `
+    <button ${page === 1 ? 'disabled' : ''} onclick="page--; fetchLogs()">Prev</button>
+    Page ${page} of ${pages}
+    <button ${page === pages ? 'disabled' : ''} onclick="page++; fetchLogs()">Next</button>
+  `;
+}
 
-      // Pagination controls
-      document.getElementById('pagination').innerHTML = `
-        <button disabled="${page === 1}" onclick="page--; fetchLogs()">Prev</button>
-        Page ${page} of ${pages}
-        <button disabled="${page === pages}" onclick="page++; fetchLogs()">Next</button>
-      `;
-    }
-    setInterval(fetchLogs, 5000);
-    fetchLogs();
   </script>
 </body>
 </html>
