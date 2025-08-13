@@ -4,6 +4,12 @@ from flask import Flask, request, Response, render_template, redirect, url_for, 
 from datetime import datetime
 from urllib.parse import unquote_plus
 from flask import abort
+import uuid
+import json
+import time
+import os
+
+
 
 app = Flask(__name__)
 
@@ -71,6 +77,66 @@ def log_attempt(ip, attempted):
     conn.commit()
     conn.close()
 
+
+def _audit_says_block(trace_id, timeout=0.8, max_lines=400):
+    """
+    Look for the just-processed request in the ModSecurity audit log by the
+    custom header X-CyberSentinel-Trace, and decide if it should be blocked.
+    Returns (blocked: bool, reason: str)
+    """
+    log_path = "/var/log/apache2/modsec_audit.log"
+    deadline = time.time() + timeout
+    want = trace_id.lower()
+
+    while time.time() < deadline:
+        try:
+            with open(log_path, "rb") as f:
+                lines = f.readlines()[-max_lines:]
+        except FileNotFoundError:
+            return (False, "")
+
+        # Scan newest-to-oldest for speed
+        for raw in reversed(lines):
+            try:
+                entry = json.loads(raw)
+            except Exception:
+                continue
+
+            req = entry.get("request", {})
+            headers = req.get("headers", {}) or {}
+
+            # Case-insensitive header lookup
+            trace_val = None
+            for k, v in headers.items():
+                if k.lower() == "x-cybersentinel-trace":
+                    trace_val = str(v).lower()
+                    break
+            if trace_val != want:
+                continue  # not our request
+
+            aud = entry.get("audit_data", {}) or {}
+            msgs = aud.get("messages", []) or []
+            tags_text = " ".join(msgs).lower()
+            intercepted = bool(aud.get("action", {}).get("intercepted", False))
+
+            if intercepted:
+                return (True, "ModSecurity intercepted=true")
+
+            # Tag-based block (covers cases like XSS seen in headers)
+            for tag in ("attack-xss", "attack-sqli", "attack-rfi", "attack-lfi", "attack-rce"):
+                if tag in tags_text:
+                    return (True, f"Detected via CRS tag: {tag}")
+
+            # Found our request but not blocked → stop searching
+            return (False, "")
+
+        # brief wait to let Apache flush the JSON line
+        time.sleep(0.05)
+
+    return (False, "")
+
+
+
 # Commented out waf_detect as per request
 # def waf_detect():
 #     ...
@@ -81,6 +147,9 @@ def caught_attack():
     attempted = request.args.get('attempted', 'Unknown Attack')  # Generalized for any attack
     ip = request.args.get('ip', get_client_ip(request))
     return render_template('caught_attack.html', attempted=attempted, ip=ip)
+
+
+
 # Updated proxy route: Proxy all requests to Cyber Sentinel for full detection/handling
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
@@ -90,64 +159,47 @@ def waf_proxy(path):
     if query_string:
         backend_url += f"?{query_string}"
 
+    # Unique marker so we can find *this exact request* in the audit log
+    trace_id = str(uuid.uuid4())
+
     try:
+        # Forward request to Apache/ModSecurity
+        fwd_headers = {k: v for k, v in request.headers if k.lower() != 'host'}
+        fwd_headers["X-CyberSentinel-Trace"] = trace_id  # <— key line
+
         resp = py_requests.request(
             method=request.method,
             url=backend_url,
-            headers={k: v for k, v in request.headers if k.lower() != 'host'},
+            headers=fwd_headers,
             data=request.get_data(),
             cookies=request.cookies,
             allow_redirects=False,
-            stream=True
+            stream=False  # we don't need streaming to decide
         )
 
         client_ip = get_client_ip(request)
 
-        # --- Block decision logic ---
-        block_reasons = []
-
-        # 1. If ModSecurity returned HTTP 403, it's blocked
+        # Primary, quick decision: explicit 403 from ModSecurity
         if resp.status_code == 403:
-            block_reasons.append("403 from ModSecurity")
-
-        # 2. If ModSecurity returned custom headers (optional CRS logging) with XSS/SQLI
-        modsec_msgs = resp.headers.get("X-ModSec-Messages", "")
-        if any(keyword in modsec_msgs.lower() for keyword in ["xss", "sqli"]):
-            block_reasons.append(f"Detected via headers: {modsec_msgs}")
-
-        # 3. Optional: Check the audit log instantly for this IP/request
-        # (lightweight tail read to see if this exact transaction was flagged)
-        try:
-            with open("/var/log/apache2/modsec_audit.log", "rb") as f:
-                lines = f.readlines()[-5:]  # last few entries only
-            for line in lines:
-                try:
-                    entry = json.loads(line)
-                    if entry.get("transaction", {}).get("remote_address") == client_ip:
-                        msgs = entry.get("audit_data", {}).get("messages", [])
-                        tags_str = " ".join(msgs).lower()
-                        if "attack-xss" in tags_str or "attack-sqli" in tags_str:
-                            block_reasons.append("Detected via audit log tags")
-                            break
-                except Exception:
-                    pass
-        except FileNotFoundError:
-            pass
-
-        # If any block reason found -> redirect to caught attack
-        if block_reasons:
-            attempted = f"Attack Detected by Cyber Sentinel ({'; '.join(block_reasons)})"
+            attempted = "Blocked by ModSecurity (HTTP 403)"
             log_attempt(client_ip, attempted)
             return redirect(url_for('caught_attack', attempted=attempted))
 
-        # If safe and root path -> serve homepage
+        # Secondary, robust decision: check audit log for our trace id
+        blocked, reason = _audit_says_block(trace_id)
+        if blocked:
+            attempted = f"Attack Detected by CyberSentinel — {reason}"
+            log_attempt(client_ip, attempted)
+            return redirect(url_for('caught_attack', attempted=attempted))
+
+        # Safe: serve homepage for clean "/" responses
         if path == '' and resp.status_code == 200:
             return send_from_directory(os.path.join(app.root_path, 'static_home'), 'index.html')
 
-        # Pass other responses through untouched
-        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
-        headers = [(name, value) for name, value in resp.raw.headers.items() if name.lower() not in excluded_headers]
-        return Response(stream_with_context(resp.iter_content(chunk_size=1024)), resp.status_code, headers)
+        # Otherwise proxy back the actual response
+        excluded = {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}
+        headers = [(k, v) for k, v in resp.headers.items() if k.lower() not in excluded]
+        return Response(resp.content, resp.status_code, headers)
 
     except py_requests.RequestException as e:
         return f"Error: {str(e)}", 502

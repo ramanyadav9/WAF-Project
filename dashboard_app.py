@@ -71,8 +71,13 @@ def parse_modsec_json(line):
 
     # --- Extract attack command ---
     attack_command = req.get("request_line", "")
-    if not attack_command and "uri" in tx:
-        attack_command = tx.get("uri")
+        # If still empty, try to grab suspicious bits from headers (e.g., XSS payload in Referer)
+    if not attack_command:
+        headers = req.get("headers", {}) or {}
+        # Prefer the query-bearing URL (Referer) if it contains script-ish content
+        ref = headers.get("Referer") or headers.get("referer") or ""
+        if any(tok in ref.lower() for tok in ("<script", "javascript:", "onerror=", "onload=")):
+            attack_command = ref
 
     # --- Extract matched rules ---
     matched_rules = []
