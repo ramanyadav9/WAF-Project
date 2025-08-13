@@ -42,7 +42,6 @@ def get_client_ip(request):
         or request.headers.get('CF-Connecting-IP')
     )
     return forwarded.split(',')[0].strip() if forwarded else request.remote_addr
-
 def init_db():
     conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
     cursor = conn.cursor()
@@ -83,7 +82,7 @@ def log_attempt(ip, attempted):
     except:
         country = 'Unknown'
         isp = 'Unknown'
-    conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
+    conn = sqlite3.connect('sqli_logs.db')
     cursor = conn.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute(
@@ -151,8 +150,8 @@ def waf_proxy(path):
         return Response(stream_with_context(resp.iter_content(chunk_size=1024)), resp.status_code, headers)
     except py_requests.RequestException as e:
         return f"Error proxying to Cyber Sentinel backend: {str(e)}", 502
-
-# Custom 404 handler
+    
+    # Custom 404 handler
 @app.errorhandler(404)
 def not_found(error):
     ip = get_client_ip(request)  # Use your existing function

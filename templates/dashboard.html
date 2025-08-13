@@ -18,7 +18,7 @@
       text-align: center;
       padding: 6vh 0 22px 0;
     }
-    .logo-block grads img {
+    .logo-block img {
       height: 68px;
       margin-bottom: 8px;
       border-radius: 13px;
@@ -131,7 +131,7 @@
             <th>#</th>
             <th>Type</th>
             <th>IP</th>
-            <th>Attack Command/Details</th>
+            <th>Details</th>
             <th>Timestamp</th>
             <th>Country</th>
             <th>ISP</th>
@@ -155,9 +155,9 @@
             {% else %}
               <tr class="{% if log[5] %}disrupted{% else %}allowed{% endif %}">
                 <td>{{ loop.index }}</td>
-                <td>{{ log.log_type | default('CyberSentinel WAF') }}</td>  <!-- Use classified type -->
+                <td>CyberSentinel WAF</td>
                 <td>{{ log[1] }}</td>
-                <td>{{ log.attack_command | default('URI: ' ~ log[2] ~ ' | Method: ' ~ log[3] ~ ' | Rules: ' ~ log[6]) }}</td>  <!-- Attack command/details -->
+                <td>URI: {{ log[2] }} | Method: {{ log[3] }} | Rules: {{ log[6] }}</td>
                 <td>{{ log[0] }}</td>
                 <td>N/A</td>  <!-- Placeholder; can add geolocation if needed -->
                 <td>N/A</td>  <!-- Placeholder -->
@@ -172,55 +172,29 @@
     {% endif %}
   </div>
   <script>
-    async function fetchLogs() {
-      const attemptsResponse = await fetch('/api/attempts');
-      const attempts = await attemptsResponse.json();
-
-      const modsecResponse = await fetch('/api/modsec_logs');
-      const modsecLogs = await modsecResponse.json();
-
-      // Combine and sort by timestamp (newest first)
-      const allLogs = [
-        ...attempts.map(log => ({ 
-          type: 'SQL Injection', 
-          ip: log.ip, 
-          attack_command: log.attempted, 
-          timestamp: log.timestamp, 
-          country: log.country, 
-          isp: log.isp, 
-          disrupted: 'Blocked' 
-        })),
-        ...modsecLogs.map(log => ({ 
-          type: log.log_type || 'CyberSentinel WAF', 
-          ip: log.client_ip, 
-          attack_command: log.attack_command || `URI: ${log.uri} | Method: ${log.method} | Rules: ${log.matched_rules}`,
-          timestamp: log.timestamp, 
-          country: 'N/A', 
-          isp: 'N/A', 
-          disrupted: log.disrupted ? 'Blocked' : 'Allowed' 
-        }))
-      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));  // Sort descending
-
+    async function fetchAttempts() {
+      const response = await fetch('/api/attempts');
+      const attempts = await response.json();
       const tbody = document.getElementById('log-list');
       tbody.innerHTML = '';
-      allLogs.forEach((log, index) => {
+      attempts.forEach((attempt, index) => {
         const tr = document.createElement('tr');
-        tr.className = log.disrupted === 'Blocked' ? 'disrupted' : 'allowed';
         tr.innerHTML = `
             <td>${index + 1}</td>
-            <td>${log.type}</td>
-            <td>${log.ip}</td>
-            <td>${log.attack_command}</td>
-            <td>${log.timestamp}</td>
-            <td>${log.country}</td>
-            <td>${log.isp}</td>
-            <td><span class="status-badge">${log.disrupted}</span></td>
+            <td>SQL Injection</td>
+            <td>${attempt.ip}</td>
+            <td>${attempt.attempted}</td>
+            <td>${attempt.timestamp}</td>
+            <td>${attempt.country}</td>
+            <td>${attempt.isp}</td>
+            <td><span class="status-badge">Blocked</span></td>
         `;
         tbody.appendChild(tr);
       });
+      // Note: Cyber Sentinel logs would need a separate API endpoint for live refresh if desired
     }
-    setInterval(fetchLogs, 5000);
-    fetchLogs();
+    setInterval(fetchAttempts, 5000);
+    fetchAttempts();
   </script>
 </body>
 </html>
