@@ -86,11 +86,6 @@ def caught_attack():
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 def waf_proxy(path):
-    # Serve static homepage at root if no path
-    if path == '':
-        return send_from_directory(os.path.join(app.root_path, 'static_home'), 'index.html')
-
-    # Proxy to Apache/Cyber Sentinel for advanced detection
     backend_url = f"http://127.0.0.1:8090/{path}?{request.query_string.decode('utf-8')}"
     try:
         resp = py_requests.request(
@@ -102,25 +97,21 @@ def waf_proxy(path):
             allow_redirects=False,
             stream=True
         )
-        # If Cyber Sentinel blocks (403), redirect to custom page
         if resp.status_code == 403:
             client_ip = get_client_ip(request)
-            attempted = "Advanced Attack Detected by Cyber Sentinel"  # Can enhance with log details if needed
-            log_attempt(client_ip, attempted)  # Log the block
+            attempted = "Attack Detected by Cyber Sentinel"
+            log_attempt(client_ip, attempted)
             return redirect(url_for('caught_attack', attempted=attempted))
 
-        # Safe response: stream back
+        # Serve static for safe root (after check)
+        if path == '' and resp.status_code == 200:
+            return send_from_directory(os.path.join(app.root_path, 'static_home'), 'index.html')
+
         excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         headers = [(name, value) for name, value in resp.raw.headers.items() if name.lower() not in excluded_headers]
         return Response(stream_with_context(resp.iter_content(chunk_size=1024)), resp.status_code, headers)
     except py_requests.RequestException as e:
-        return f"Error proxying to Cyber Sentinel backend: {str(e)}", 502
-
-# Custom 404 handler
-@app.errorhandler(404)
-def not_found(error):
-    ip = get_client_ip(request)  # Use your existing function
-    return render_template('not_found.html', ip=ip), 404
+        return f"Error: {str(e)}", 502
 
 # Custom 500 handler
 @app.errorhandler(500)
