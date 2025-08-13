@@ -8,7 +8,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Initialize DB with both tables
+# Initialize DB with both tables (added log_type and attack_command)
 def init_db():
     conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
     cursor = conn.cursor()
@@ -31,7 +31,9 @@ def init_db():
             method TEXT,
             status TEXT,
             disrupted BOOLEAN,
-            matched_rules TEXT
+            matched_rules TEXT,
+            log_type TEXT,       -- New: Classified type (e.g., SQL Injection, XSS)
+            attack_command TEXT  -- New: Extracted attack details (e.g., URI)
         )
     ''')
     conn.commit()
@@ -41,7 +43,7 @@ def init_db():
 with app.app_context():
     init_db()
 
-# Parser for Cyber Sentinel JSON logs (filters to key fields)
+# Updated parser: Includes type classification and attack command extraction
 def parse_modsec_json(line):
     try:
         obj = json.loads(line)
@@ -53,6 +55,18 @@ def parse_modsec_json(line):
             'message': m.get('message', ''),
             'severity': m.get('severity', '')
         } for m in messages])  # Filter to essential rule info
+
+        # Classify log_type based on message content
+        log_type = "Unknown"
+        if any("sqli" in m['message'].lower() for m in json.loads(matched)):
+            log_type = "SQL Injection"
+        elif any("xss" in m['message'].lower() for m in json.loads(matched)):
+            log_type = "XSS"
+        # Add more conditions for other types if needed (e.g., "command injection")
+
+        # Extract attack_command (use URI as proxy for the attack details)
+        attack_command = tx.get('uri', 'Unknown')
+
         disrupted = audit_data.get('action', '') == 'intercepted'  # Was it blocked?
         return {
             'timestamp': tx.get('time_stamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
@@ -61,12 +75,14 @@ def parse_modsec_json(line):
             'method': tx.get('request_method', ''),
             'status': audit_data.get('status', ''),
             'disrupted': disrupted,
-            'matched_rules': matched
+            'matched_rules': matched,
+            'log_type': log_type,
+            'attack_command': attack_command
         }
     except Exception:
         return None
 
-# Background tailer to read and insert logs
+# Background tailer to read and insert logs (updated for new fields)
 def tail_log():
     log_path = '/var/log/apache2/modsec_audit.log'
     if not os.path.exists(log_path):
@@ -84,9 +100,9 @@ def tail_log():
                 conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO modsec_logs (timestamp, client_ip, uri, method, status, disrupted, matched_rules)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (rec['timestamp'], rec['client_ip'], rec['uri'], rec['method'], rec['status'], rec['disrupted'], rec['matched_rules']))
+                    INSERT INTO modsec_logs (timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (rec['timestamp'], rec['client_ip'], rec['uri'], rec['method'], rec['status'], rec['disrupted'], rec['matched_rules'], rec['log_type'], rec['attack_command']))
                 conn.commit()
                 conn.close()
 
@@ -100,7 +116,7 @@ def admin_logs():
     cursor = conn.cursor()
     cursor.execute('SELECT ip, attempted, timestamp, country, isp FROM attempts ORDER BY id DESC')
     attempts = cursor.fetchall()
-    cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules FROM modsec_logs ORDER BY id DESC')
+    cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command FROM modsec_logs ORDER BY id DESC')
     modsec_logs = cursor.fetchall()  # Fetch Cyber Sentinel logs
     conn.close()
     return render_template('dashboard.html', attempts=attempts, modsec_logs=modsec_logs)  # Pass both to template
@@ -115,6 +131,19 @@ def api_attempts():
     return jsonify([
         {"ip": a[0], "attempted": a[1], "timestamp": a[2], "country": a[3], "isp": a[4]}
         for a in attempts
+    ])
+
+# New: API endpoint for Cyber Sentinel logs (for live refresh)
+@app.route('/api/modsec_logs')
+def api_modsec_logs():
+    conn = sqlite3.connect('/home/kali/WAF-Project/sqli_logs.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT timestamp, client_ip, uri, method, status, disrupted, matched_rules, log_type, attack_command FROM modsec_logs ORDER BY id DESC')
+    modsec_logs = cursor.fetchall()
+    conn.close()
+    return jsonify([
+        {"timestamp": l[0], "client_ip": l[1], "uri": l[2], "method": l[3], "status": l[4], "disrupted": l[5], "matched_rules": l[6], "log_type": l[7], "attack_command": l[8]}
+        for l in modsec_logs
     ])
 
 if __name__ == '__main__':
