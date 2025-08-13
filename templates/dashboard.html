@@ -108,6 +108,7 @@
     }
     .disrupted { background-color: #ffdddd; }  /* Red for blocked */
     .allowed { background-color: #ddffdd; }    /* Green for allowed */
+    #pagination { margin-top: 10px; text-align: center; }
     @media (max-width:600px) {
       .container { padding: 13px 3vw; }
       .logo-block img { height: 48px; }
@@ -147,7 +148,7 @@
                 <td>{{ loop.index }}</td>
                 <td>SQL Injection</td>
                 <td>{{ log[0] }}</td>
-                <td>{{ log[1] }}</td>  <!-- Attempted as attack command -->
+                <td>{{ log[1] }}</td>
                 <td>N/A</td>
                 <td>{{ log[2] }}</td>
                 <td>{{ log[3] }}</td>
@@ -157,32 +158,36 @@
             {% else %}
               <tr class="{% if log[5] %}disrupted{% else %}allowed{% endif %}">
                 <td>{{ loop.index }}</td>
-                <td>{{ log.log_type | default('CyberSentinel WAF') }}</td>  <!-- Classified type -->
+                <td>{{ log.log_type | default('CyberSentinel WAF') }}</td>
                 <td>{{ log[1] }}</td>
-                <td>{{ log.attack_command | default('URI: ' ~ log[2]) }}</td>  <!-- Attack command -->
-                <td>{{ log[6] }}</td>  <!-- Matched rules -->
+                <td>{{ log.attack_command | default(log[2]) }}</td>
+                <td>{{ log[6] }}</td>
                 <td>{{ log[0] }}</td>
-                <td>N/A</td>  <!-- Placeholder -->
-                <td>N/A</td>  <!-- Placeholder -->
+                <td>N/A</td>
+                <td>N/A</td>
                 <td>{{ 'Blocked' if log[5] else 'Allowed' }}</td>
               </tr>
             {% endif %}
           {% endfor %}
         </tbody>
       </table>
+      <div id="pagination"></div>
     {% else %}
       <p>No logs yet.</p>
     {% endif %}
   </div>
   <script>
+    let page = 1, size = 25;
     async function fetchLogs() {
       const attemptsResponse = await fetch('/api/attempts');
       const attempts = await attemptsResponse.json();
+      const modsecResponse = await fetch(`/api/modsec_logs?page=${page}&size=${size}`);
+      const modsecData = await modsecResponse.json();
+      const modsecLogs = modsecData.logs || [];  // Use paginated logs
+      const total = modsecData.total || 0;
+      const pages = modsecData.pages || 1;
 
-      const modsecResponse = await fetch('/api/modsec_logs');
-      const modsecLogs = await modsecResponse.json();
-
-      // Combine and sort by timestamp (newest first)
+      // Combine and sort by timestamp
       const allLogs = [
         ...attempts.map(log => ({ 
           type: 'SQL Injection', 
@@ -197,8 +202,8 @@
         ...modsecLogs.map(log => ({ 
           type: log.log_type || 'CyberSentinel WAF', 
           ip: log.client_ip, 
-          attack_command: log.attack_command || `URI: ${log.uri}`, 
-          rules: log.matched_rules, 
+          attack_command: log.attack_command || log.uri, 
+          rules: log.matched_rules,  // JSON string for now
           timestamp: log.timestamp, 
           country: 'N/A', 
           isp: 'N/A', 
@@ -209,6 +214,11 @@
       const tbody = document.getElementById('log-list');
       tbody.innerHTML = '';
       allLogs.forEach((log, index) => {
+        let rulesDisplay = log.rules;
+        try {
+          const rulesArr = JSON.parse(log.rules);
+          rulesDisplay = rulesArr.map(r => `${r.rule_id}: ${r.message}`).join('<br>');
+        } catch {}
         const tr = document.createElement('tr');
         tr.className = log.disrupted === 'Blocked' ? 'disrupted' : 'allowed';
         tr.innerHTML = `
@@ -216,7 +226,7 @@
             <td>${log.type}</td>
             <td>${log.ip}</td>
             <td>${log.attack_command}</td>
-            <td>${log.rules}</td>
+            <td>${rulesDisplay}</td>
             <td>${log.timestamp}</td>
             <td>${log.country}</td>
             <td>${log.isp}</td>
@@ -224,6 +234,13 @@
         `;
         tbody.appendChild(tr);
       });
+
+      // Pagination controls
+      document.getElementById('pagination').innerHTML = `
+        <button disabled="${page === 1}" onclick="page--; fetchLogs()">Prev</button>
+        Page ${page} of ${pages}
+        <button disabled="${page === pages}" onclick="page++; fetchLogs()">Next</button>
+      `;
     }
     setInterval(fetchLogs, 5000);
     fetchLogs();
